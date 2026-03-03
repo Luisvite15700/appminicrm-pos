@@ -14,6 +14,7 @@ export default function RegistrarProductoModal() {
   const [video, setVideo] = useState('');
   const [slug, setSlug] = useState('');
   const [cantidad, setCantidad] = useState('');
+  const [categoria, setCategoria] = useState(''); // State for Categoria
   const router = useRouter();
   const theme = useTheme();
 
@@ -27,7 +28,8 @@ export default function RegistrarProductoModal() {
       precio_descuento: precioDescuento,
       video,
       slug,
-      cantidad: parseInt(cantidad, 10),
+      cantidad: parseInt(cantidad, 10) || 0,
+      categoria, // Include Categoria in the payload
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -45,7 +47,8 @@ export default function RegistrarProductoModal() {
         console.log('Product registered successfully!');
         router.back();
       } else {
-        console.error('Error registering product:', response.statusText);
+        const errorText = await response.text();
+        console.error('Error registering product:', response.status, errorText);
       }
     } catch (error) {
       console.error("Error registering product:", error);
@@ -87,14 +90,15 @@ export default function RegistrarProductoModal() {
         <ScrollView contentContainerStyle={styles.scrollContent} style={{backgroundColor: theme.colors.background}}>
             <Title style={styles.title}>Registrar Nuevo Producto</Title>
             <TextInput label="Nombre" value={nombre} onChangeText={setNombre} style={styles.input} />
+            <TextInput label="Categoría" value={categoria} onChangeText={setCategoria} style={styles.input} />
+            <TextInput label="Cantidad" value={cantidad} onChangeText={setCantidad} style={styles.input} keyboardType="numeric" />
+            <TextInput label="Precio Regular" value={precioRegular} onChangeText={setPrecioRegular} style={styles.input} keyboardType="numeric" />
+            <TextInput label="Precio Descuento" value={precioDescuento} onChangeText={setPrecioDescuento} style={styles.input} keyboardType="numeric" />
             <TextInput label="Foto (URL)" value={foto} onChangeText={setFoto} style={styles.input} />
             <TextInput label="Galería (URLs separadas por comas)" value={galeria} onChangeText={setGaleria} style={styles.input} />
             <TextInput label="Especificaciones" value={especificaciones} onChangeText={setEspecificaciones} style={styles.input} multiline />
-            <TextInput label="Precio Regular" value={precioRegular} onChangeText={setPrecioRegular} style={styles.input} keyboardType="numeric" />
-            <TextInput label="Precio Descuento" value={precioDescuento} onChangeText={setPrecioDescuento} style={styles.input} keyboardType="numeric" />
             <TextInput label="Video (URL)" value={video} onChangeText={setVideo} style={styles.input} />
             <TextInput label="Slug" value={slug} onChangeText={setSlug} style={styles.input} />
-            <TextInput label="Cantidad" value={cantidad} onChangeText={setCantidad} style={styles.input} keyboardType="numeric" />
             <Button mode="contained" onPress={handleRegister} style={styles.button}>
               Registrar Producto
             </Button>

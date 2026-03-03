@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, FlatList, RefreshControl } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, View, ScrollView, RefreshControl } from 'react-native';
 import { DataTable, Searchbar, Button, FAB, useTheme, Title } from 'react-native-paper';
 import { ThemedText } from '@/components/themed-text';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -18,6 +18,7 @@ interface Product {
   video: string | null;
   slug: string;
   cantidad: number;
+  categoria: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,7 +57,8 @@ export default function TabInventarioScreen() {
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     const filtered = originalProducts.filter(item =>
-      item.nombre.toLowerCase().includes(query.toLowerCase())
+      item.nombre.toLowerCase().includes(query.toLowerCase()) ||
+      (item.categoria && item.categoria.toLowerCase().includes(query.toLowerCase()))
     );
     setProducts(filtered);
   };
@@ -73,10 +75,9 @@ export default function TabInventarioScreen() {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    listContent: {
-        paddingHorizontal: 16,
-        paddingTop: 40, 
-        paddingBottom: 80, // Add padding for FAB
+    scrollContainer: {
+      padding: 16,
+      paddingBottom: 80, // Space for FAB
     },
     title: {
       marginBottom: 16,
@@ -103,25 +104,23 @@ export default function TabInventarioScreen() {
     },
   });
 
-  const renderProduct = ({ item }: { item: Product }) => (
-    <DataTable.Row key={item.id} onPress={() => router.push(`/producto/${item.id}`)}>
-        <DataTable.Cell>{item.nombre}</DataTable.Cell>
-        <DataTable.Cell numeric>{item.cantidad}</DataTable.Cell>
-        <DataTable.Cell numeric>S/{item.precio_regular}</DataTable.Cell>
-    </DataTable.Row>
-  );
-
-  const ListHeader = () => (
-    <View>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <ThemedText type="title" style={styles.title}>
           Inventario
         </ThemedText>
+
         <Searchbar
-          placeholder="Buscar producto"
+          placeholder="Buscar por producto o categoría"
           onChangeText={handleSearch}
           value={searchQuery}
           style={styles.searchbar}
         />
+
         <View style={styles.filterContainer}>
           <Button mode="contained" onPress={() => handleSort('desc')} style={styles.filterButton}>
             Mayor cantidad
@@ -130,29 +129,33 @@ export default function TabInventarioScreen() {
             Menor cantidad
           </Button>
         </View>
-        <DataTable.Header>
-            <DataTable.Title>Producto</DataTable.Title>
-            <DataTable.Title numeric>Cantidad</DataTable.Title>
-            <DataTable.Title numeric>Precio</DataTable.Title>
-        </DataTable.Header>
-    </View>
-  );
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-        <FlatList
-            data={products}
-            renderItem={renderProduct}
-            keyExtractor={(item) => item.id.toString()}
-            ListHeaderComponent={ListHeader}
-            contentContainerStyle={styles.listContent}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        />
-        <FAB
-            style={styles.fab}
-            icon="plus"
-            onPress={() => router.push('/registrar-producto-modal')}
-        />
+        <ScrollView horizontal>
+          <View>
+            <DataTable.Header>
+              <DataTable.Title style={{ width: 150 }}>Producto</DataTable.Title>
+              <DataTable.Title style={{ width: 110 }}>Categoría</DataTable.Title>
+              <DataTable.Title numeric style={{ width: 80 }}>Precio</DataTable.Title>
+              <DataTable.Title numeric style={{ width: 80 }}>Cantidad</DataTable.Title>
+            </DataTable.Header>
+
+            {products.map((item) => (
+              <DataTable.Row key={item.id} onPress={() => router.push(`/producto/${item.id}`)}>
+                <DataTable.Cell style={{ width: 150 }}>{item.nombre}</DataTable.Cell>
+                <DataTable.Cell style={{ width: 110 }}>{item.categoria}</DataTable.Cell>
+                <DataTable.Cell numeric style={{ width: 80 }}>S/{item.precio_regular}</DataTable.Cell>
+                <DataTable.Cell numeric style={{ width: 80 }}>{item.cantidad}</DataTable.Cell>
+              </DataTable.Row>
+            ))}
+          </View>
+        </ScrollView>
+      </ScrollView>
+
+      <FAB
+        style={styles.fab}
+        icon="plus"
+        onPress={() => router.push('/registrar-producto-modal')}
+      />
     </SafeAreaView>
   );
 }

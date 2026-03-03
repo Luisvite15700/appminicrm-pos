@@ -5,7 +5,7 @@ import { Card, Title, Paragraph, Button, useTheme } from 'react-native-paper';
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Define the type for a product based on the API response
+// Define the type for a product, now including 'categoria'
 interface Product {
   id: number;
   nombre: string;
@@ -17,6 +17,7 @@ interface Product {
   video: string | null;
   slug: string;
   cantidad: number;
+  categoria: string; // Added categoria
   createdAt: string;
   updatedAt: string;
 }
@@ -29,7 +30,8 @@ export default function ProductDetailScreen() {
 
   const fetchProduct = useCallback(async () => {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_PRODUCT_DETAIL_API!}?id=${id}`);
+      const apiUrl = (process.env.EXPO_PUBLIC_PRODUCT_DETAIL_API || '').replace('hhttps://', 'https://');
+      const response = await fetch(`${apiUrl}?id=${id}`);
       const data: Product[] = await response.json();
       if (data.length > 0) {
         setProduct(data[0]);
@@ -86,7 +88,19 @@ export default function ProductDetailScreen() {
     return null; // Or a loading indicator
   }
 
-  const galleryImages = product.galeria ? product.galeria.split(',') : [];
+  let galleryImages: string[] = [];
+  if (product && product.galeria) {
+    try {
+      const parsedData = JSON.parse(product.galeria);
+      if (Array.isArray(parsedData)) {
+        galleryImages = parsedData;
+      }
+    } catch (e) {
+      if (typeof product.galeria === 'string') {
+        galleryImages = product.galeria.split(',').map(item => item.trim()).filter(item => item);
+      }
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -105,6 +119,7 @@ export default function ProductDetailScreen() {
                 {product.foto && <Card.Cover source={{ uri: product.foto }} />}
                 <Card.Content>
                     <Title>{product.nombre}</Title>
+                    {product.categoria && <Paragraph>Categoría: {product.categoria}</Paragraph>}
                     <Paragraph>Cantidad: {product.cantidad}</Paragraph>
                     <Paragraph>Precio: S/{product.precio_regular}</Paragraph>
                     {product.precio_descuento && <Paragraph>Descuento: S/{product.precio_descuento}</Paragraph>}
@@ -119,9 +134,13 @@ export default function ProductDetailScreen() {
                     <View style={styles.galleryContainer}>
                         <Title style={styles.title}>Galería</Title>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {galleryImages.map((url, index) => (
-                            <Image key={index} source={{ uri: url }} style={styles.galleryImage} />
-                        ))}
+                        {galleryImages.map((url, index) => {
+                            const trimmedUrl = url.trim();
+                            if (trimmedUrl) {
+                                return <Image key={index} source={{ uri: trimmedUrl }} style={styles.galleryImage} />;
+                            }
+                            return null;
+                        })}
                         </ScrollView>
                     </View>
                 )}

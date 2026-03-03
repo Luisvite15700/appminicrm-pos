@@ -10,7 +10,7 @@ export default function EditarProductoModal() {
   const { product: productString } = params;
   const theme = useTheme();
 
-  // Define the type for a product
+  // Define the type for a product, including 'categoria'
   interface Product {
     id: number;
     nombre: string;
@@ -22,6 +22,7 @@ export default function EditarProductoModal() {
     video: string | null;
     slug: string;
     cantidad: number;
+    categoria: string; // Added categoria field
   }
   
   const [product, setProduct] = useState<Product | null>(null);
@@ -34,12 +35,13 @@ export default function EditarProductoModal() {
   const [video, setVideo] = useState('');
   const [slug, setSlug] = useState('');
   const [cantidad, setCantidad] = useState('');
+  const [categoria, setCategoria] = useState(''); // State for categoria
 
   useEffect(() => {
     if (productString && typeof productString === 'string') {
       const parsedProduct = JSON.parse(productString);
       setProduct(parsedProduct);
-      setNombre(parsedProduct.nombre);
+      setNombre(parsedProduct.nombre || '');
       setFoto(parsedProduct.foto || '');
       setGaleria(parsedProduct.galeria || '');
       setEspecificaciones(parsedProduct.especificaciones || '');
@@ -47,7 +49,9 @@ export default function EditarProductoModal() {
       setPrecioDescuento(parsedProduct.precio_descuento || '');
       setVideo(parsedProduct.video || '');
       setSlug(parsedProduct.slug || '');
-      setCantidad(parsedProduct.cantidad?.toString() || '');
+      // Robustly set cantidad, handling 0 or other numbers
+      setCantidad(parsedProduct.cantidad != null ? parsedProduct.cantidad.toString() : '');
+      setCategoria(parsedProduct.categoria || ''); // Set categoria state
     }
   }, [productString]);
 
@@ -55,7 +59,7 @@ export default function EditarProductoModal() {
     if (!product) return;
 
     const updatedProductData = {
-      id: product.id, // The user stated the ID is required in the body
+      id: product.id, 
       nombre,
       foto,
       galeria,
@@ -64,7 +68,8 @@ export default function EditarProductoModal() {
       precio_descuento: precioDescuento,
       video,
       slug,
-      cantidad: parseInt(cantidad, 10),
+      cantidad: parseInt(cantidad, 10) || 0, // Ensure it's a number, default to 0
+      categoria, // Include categoria in the update payload
       updatedAt: new Date().toISOString(),
     };
 
@@ -72,7 +77,7 @@ export default function EditarProductoModal() {
     
     try {
       const response = await fetch(endpoint, {
-        method: 'POST', // Using POST as requested
+        method: 'POST', 
         headers: {
           'Content-Type': 'application/json',
         },
@@ -81,7 +86,6 @@ export default function EditarProductoModal() {
 
       if (response.ok) {
         console.log('Product updated successfully!');
-        // TODO: We should refresh the data on the previous screen
         router.back();
       } else {
         const errorText = await response.text();
@@ -127,14 +131,15 @@ export default function EditarProductoModal() {
         <ScrollView contentContainerStyle={styles.scrollContent} style={{backgroundColor: theme.colors.background}}>
             <Title style={styles.title}>Editar Producto</Title>
             <TextInput label="Nombre" value={nombre} onChangeText={setNombre} style={styles.input} />
-            <TextInput label="Foto (URL)" value={foto} onChangeText={setFoto} style={styles.input} />
-            <TextInput label="Galería (URLs separadas por comas)" value={galeria} onChangeText={setGaleria} style={styles.input} />
-            <TextInput label="Especificaciones" value={especificaciones} onChangeText={setEspecificaciones} style={styles.input} multiline />
+            <TextInput label="Categoría" value={categoria} onChangeText={setCategoria} style={styles.input} />
+            <TextInput label="Cantidad" value={cantidad} onChangeText={setCantidad} style={styles.input} keyboardType="numeric" />
             <TextInput label="Precio Regular" value={precioRegular} onChangeText={setPrecioRegular} style={styles.input} keyboardType="numeric" />
             <TextInput label="Precio Descuento" value={precioDescuento} onChangeText={setPrecioDescuento} style={styles.input} keyboardType="numeric" />
+            <TextInput label="Foto (URL)" value={foto} onChangeText={setFoto} style={styles.input} />
+            <TextInput label="Galería (JSON o separado por comas)" value={galeria} onChangeText={setGaleria} style={styles.input} />
+            <TextInput label="Especificaciones" value={especificaciones} onChangeText={setEspecificaciones} style={styles.input} multiline />
             <TextInput label="Video (URL)" value={video} onChangeText={setVideo} style={styles.input} />
             <TextInput label="Slug" value={slug} onChangeText={setSlug} style={styles.input} />
-            <TextInput label="Cantidad" value={cantidad} onChangeText={setCantidad} style={styles.input} keyboardType="numeric" />
             <Button mode="contained" onPress={handleUpdate} style={styles.button}>
               Actualizar Producto
             </Button>
