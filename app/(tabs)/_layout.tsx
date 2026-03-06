@@ -1,3 +1,4 @@
+
 import { CommonActions } from '@react-navigation/native';
 import { Tabs } from 'expo-router';
 import React from 'react';
@@ -69,21 +70,21 @@ export default function TabLayout() {
           ),
         }}
       />
-        <Tabs.Screen
-            name="reportes"
-            options={{
-                tabBarLabel: 'Reportes',
-                tabBarIcon: ({ color, size }) => (
-                    <Icon source="chart-bar" size={size} color={color} />
-                ),
-            }}
-        />
       <Tabs.Screen
-        name="about"
+        name="reportes"
         options={{
-          tabBarLabel: 'Nosotros',
+            tabBarLabel: 'Reportes',
+            tabBarIcon: ({ color, size }) => (
+                <Icon source="chart-bar" size={size} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="facturas"
+        options={{
+          tabBarLabel: 'Facturas',
           tabBarIcon: ({ color, size }) => (
-            <Icon source="information" size={size} color={color} />
+            <Icon source="receipt" size={size} color={color} />
           ),
         }}
       />
