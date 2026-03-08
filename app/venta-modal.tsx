@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { TextInput, Button, Title, useTheme, Paragraph } from 'react-native-paper';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -46,6 +46,8 @@ export default function VentaModal() {
   const [createdAt, setCreatedAt] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false); // For the update button
+  const [isGenerating, setIsGenerating] = useState(false); // For the generate receipt button
 
   useEffect(() => {
     const fetchVenta = async () => {
@@ -87,6 +89,7 @@ export default function VentaModal() {
 
   const handleUpdate = async () => {
     if (!ventaId) return;
+    setIsUpdating(true);
 
     const updatedVentaData = {
       id: ventaId,
@@ -104,28 +107,67 @@ export default function VentaModal() {
       ESTADO: estado,
     };
 
-    const endpoint = process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!;
-    
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedVentaData),
       });
 
       if (response.ok) {
-        console.log('Venta updated successfully!');
+        Alert.alert('Éxito', 'Venta actualizada correctamente.');
         router.back();
       } else {
         const errorText = await response.text();
-        console.error('Error updating venta:', response.status, errorText);
+        Alert.alert('Error', `No se pudo actualizar la venta: ${errorText}`);
       }
-    } catch (error) {
-      console.error("Error updating venta:", error);
+    } catch (error: any) {
+      Alert.alert('Error', `Ocurrió un error: ${error.message}`);
+    } finally {
+      setIsUpdating(false);
     }
   };
+
+  const handleGenerateComprobante = async () => {
+    setIsGenerating(true);
+
+    const comprobanteData = {
+        id: ventaId,
+        PRODUCTO: producto,
+        CANTIDAD: cantidad,
+        PRECIO: precio,
+        TOTAL: total,
+        CLIENTE_NOMBRE: clienteNombre,
+        CLIENTE_CORREO: clienteCorreo,
+        CLIENTE_ID: clienteId,
+        CODIGO_SEGUIMIENTO: codigoSeguimiento,
+        PEDIDO_ID: pedidoId,
+        TIPO_COMPROBANTE: tipoComprobante,
+        NRO_DOCUMENTO: nroDocumento,
+        ESTADO: estado, // Current state is sent
+    };
+
+    try {
+        const response = await fetch(process.env.EXPO_PUBLIC_CREAR_COMPROBANTE!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(comprobanteData),
+        });
+
+        if(response.ok) {
+            Alert.alert('Éxito', 'La solicitud para generar el comprobante ha sido enviada.');
+            // Optionally, you could update the status locally or refetch
+            setEstado('PARA_SUNAT');
+        } else {
+            const errorText = await response.text();
+            Alert.alert('Error', `No se pudo generar el comprobante: ${errorText}`);
+        }
+    } catch (error: any) {
+        Alert.alert('Error', `Ocurrió un error al enviar la solicitud: ${error.message}`);
+    } finally {
+        setIsGenerating(false);
+    }
+  }
   
   const styles = StyleSheet.create({
     container: {
@@ -138,7 +180,8 @@ export default function VentaModal() {
       marginBottom: 16,
     },
     button: {
-      marginTop: 16,
+      marginTop: 8, // Adjusted margin for multiple buttons
+      paddingVertical: 6,
     },
     title: {
         marginBottom: 16,
@@ -228,9 +271,27 @@ export default function VentaModal() {
             <Paragraph style={styles.dateText}>Creado: {createdAt}</Paragraph>
             <Paragraph style={styles.dateText}>Actualizado: {updatedAt}</Paragraph>
 
-            <Button mode="contained" onPress={handleUpdate} style={styles.button}>
+            <Button 
+                mode="contained"
+                onPress={handleUpdate}
+                style={styles.button}
+                loading={isUpdating}
+                disabled={isUpdating || isGenerating}
+            >
               Actualizar Venta
             </Button>
+
+            <Button 
+                mode="outlined" // Or contained, as you prefer
+                onPress={handleGenerateComprobante}
+                style={styles.button}
+                loading={isGenerating}
+                disabled={isUpdating || isGenerating}
+                icon="file-document-outline"
+            >
+              GENERAR COMPROBANTE
+            </Button>
+
         </ScrollView>
     </KeyboardAvoidingView>
   );

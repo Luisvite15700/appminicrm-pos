@@ -3,7 +3,7 @@ import { ThemedText } from '@/components/themed-text';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Paragraph, Searchbar, Title, useTheme } from 'react-native-paper';
+import { Button, Card, Paragraph, Searchbar, Title, useTheme, FAB } from 'react-native-paper'; // 1. Import FAB
 import { useRouter } from 'expo-router';
 
 // Helper function to get the start of the week (Sunday)
@@ -102,6 +102,11 @@ export default function TabVentasScreen() {
     router.push({ pathname: '/venta-modal', params: { venta: JSON.stringify(venta) } });
   };
 
+  // 2. Navigation handler for the new screen
+  const handleCreateVenta = () => {
+    router.push('/crear-venta-modal');
+  };
+
   const styles = StyleSheet.create({
     safeArea: {
       flex: 1,
@@ -139,7 +144,15 @@ export default function TabVentasScreen() {
         paddingHorizontal: 16,
         paddingTop: 40,
         paddingBottom: 16,
-    }
+    },
+    // 3. Style for the FAB
+    fab: {
+        position: 'absolute',
+        margin: 16,
+        right: 0,
+        bottom: 0,
+        backgroundColor: theme.colors.primary,
+    },
   });
 
   const renderSale = ({ item }: { item: Venta }) => (
@@ -197,6 +210,14 @@ export default function TabVentasScreen() {
               </View>
             </View>
           }
+        />
+        {/* 4. Add the FAB to the layout */}
+        <FAB
+            icon="plus"
+            label="Crear Venta"
+            style={styles.fab}
+            onPress={handleCreateVenta}
+            color={theme.colors.onPrimary}
         />
     </SafeAreaView>
   );
