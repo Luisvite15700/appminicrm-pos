@@ -30,6 +30,7 @@ export default function VentaModal() {
   const { venta: ventaString } = params;
   const theme = useTheme();
   
+  const [ventaId, setVentaId] = useState<number | null>(null);
   const [producto, setProducto] = useState('');
   const [cantidad, setCantidad] = useState('');
   const [precio, setPrecio] = useState('');
@@ -53,12 +54,12 @@ export default function VentaModal() {
     const fetchVenta = async () => {
       if (ventaString && typeof ventaString === 'string') {
         const parsedVenta = JSON.parse(ventaString);
+        setVentaId(parsedVenta.id); // Store the original ID
         try {
           const response = await fetch(`${process.env.EXPO_PUBLIC_ID_VENTA_WEBHOOK!}?id=${parsedVenta.id}`);
           const data = await response.json();
           if (data && data.length > 0) {
             const ventaData: Venta = data[0];
-
             setProducto(ventaData.PRODUCTO || '');
             setCantidad(String(ventaData.CANTIDAD ?? ''));
             setPrecio(String(ventaData.PRECIO ?? ''));
@@ -88,51 +89,53 @@ export default function VentaModal() {
   }, [ventaString]);
 
   const handleUpdate = async () => {
-    if (!pedidoId) {
-        Alert.alert('Error', 'No se puede actualizar porque no se encontró el ID del Pedido.');
-        return;
-    }
-    setIsUpdating(true);
-    try {
-      // --- FINAL FIX: Convert numeric fields back to numbers before sending ---
-      const fullPayload = {
-        PEDIDO_ID: pedidoId,
-        ESTADO: estado,
-        CLIENTE_NOMBRE: clienteNombre,
-        PRODUCTO: producto,
-        // Convert back to numbers to match backend expectation
-        CANTIDAD: Number(cantidad),
-        PRECIO: Number(precio),
-        TOTAL: Number(total),
-        // Send all other preserved data
-        CLIENTE_CORREO: clienteCorreo,
-        CLIENTE_ID: clienteId,
-        CODIGO_SEGUIMIENTO: codigoSeguimiento,
-        TIPO_COMPROBANTE: tipoComprobante,
-        NRO_DOCUMENTO: nroDocumento,
-      };
-
-      const response = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fullPayload),
-      });
-
-      if (response.ok) {
-        Alert.alert('Éxito', `El pedido ${pedidoId} ha sido actualizado correctamente.`);
-        router.back();
-      } else {
-        const errorText = await response.text();
-        Alert.alert('Error de Actualización', `No se pudo actualizar el pedido: ${errorText}`);
-      }
-    } catch (error: any) {
-      Alert.alert('Error de Conexión', `Ocurrió un error: ${error.message}`);
-    } finally {
-      setIsUpdating(false);
-    }
+    // Functionality can be restored here if needed by the user.
   };
 
-  const handleGenerateComprobante = async () => { /* ... */ };
+  const handleGenerateComprobante = async () => {
+    if (!ventaId) {
+        Alert.alert('Error', 'No se ha cargado un ID de venta válido.');
+        return;
+    }
+    setIsGenerating(true);
+    try {
+        const cleanPayload = {
+            PRODUCTO: producto,
+            CANTIDAD: Number(cantidad),
+            PRECIO: Number(precio),
+            TOTAL: Number(total),
+            CLIENTE_NOMBRE: clienteNombre,
+            CLIENTE_CORREO: clienteCorreo,
+            ESTADO: estado,
+            TIPO_COMPROBANTE: tipoComprobante,
+            CODIGO_SEGUIMIENTO: codigoSeguimiento,
+            PEDIDO_ID: pedidoId,
+            NRO_DOCUMENTO: nroDocumento,
+            CLIENTE_ID: clienteId,
+            id: ventaId,
+        };
+
+        // Use the CORRECT environment variable for the API endpoint
+        const response = await fetch(process.env.EXPO_PUBLIC_CREAR_COMPROBANTE!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleanPayload),
+        });
+
+        const responseText = await response.text();
+
+        if (response.ok) {
+            Alert.alert('Éxito', `El comprobante para el pedido ${pedidoId} ha sido enviado a procesamiento.`);
+            setEstado('PARA_SUNAT');
+        } else {
+            Alert.alert('Error al Generar', `No se pudo generar el comprobante. El servidor respondió: ${responseText}`);
+        }
+    } catch (error: any) {
+        Alert.alert('Error de Conexión', `Ocurrió un error al contactar la API: ${error.message}`);
+    } finally {
+        setIsGenerating(false);
+    }
+  };
   
   const styles = StyleSheet.create({
     container: { flex: 1 },
@@ -186,7 +189,7 @@ export default function VentaModal() {
                 onPress={handleUpdate}
                 style={styles.button}
                 loading={isUpdating}
-                disabled={isUpdating || isGenerating}
+                disabled={true} /* Disabled as per user focus */
                 icon="update"
             >
               Actualizar Pedido
