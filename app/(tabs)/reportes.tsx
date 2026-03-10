@@ -60,10 +60,11 @@ export default function TabReportesScreen() {
   const fetchData = useCallback(async () => {
     setRefreshing(true);
     try {
+      // --- FIX: Using environment variables for API endpoints ---
       const [salesRes, clientsRes, productsRes] = await Promise.all([
-        fetch('https://n8n2.stg.brayan.es/webhook/2354354353-c918-4f13-86cc-LISTA_VENTAS_P0012'),
-        fetch('https://n8n2.stg.brayan.es/webhook/97683232mk-c918-4f13-86cc-LISTA_CLIENTE_P0012'),
-        fetch('https://n8n2.stg.brayan.es/webhook/97688bd0-c918-4f13-86cc-LISTA_PRODUCTOS_P0012'),
+        fetch(process.env.EXPO_PUBLIC_LISTA_VENTAS_WEBHOOK!),
+        fetch(process.env.EXPO_PUBLIC_CLIENT_LIST_API!),
+        fetch(process.env.EXPO_PUBLIC_INVENTORY_LIST_API!),
       ]);
 
       const sales: Venta[] = await salesRes.json();

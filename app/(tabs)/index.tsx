@@ -3,10 +3,9 @@ import { ThemedText } from '@/components/themed-text';
 import React, { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Paragraph, Searchbar, Title, useTheme, FAB } from 'react-native-paper'; // 1. Import FAB
+import { Button, Card, Paragraph, Searchbar, Title, useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 
-// Helper function to get the start of the week (Sunday)
 const getStartOfWeek = (date: Date) => {
   const d = new Date(date);
   const day = d.getDay();
@@ -26,7 +25,7 @@ interface Venta {
   CODIGO_SEGUIMIENTO: string;
   ESTADO: string;
   PEDIDO_ID: string;
-  createdAt: string; // ISO 8601 format
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -62,7 +61,9 @@ export default function TabVentasScreen() {
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     const filtered = originalSales.filter(sale =>
-      sale.PRODUCTO.toLowerCase().includes(query.toLowerCase())
+      sale.PRODUCTO.toLowerCase().includes(query.toLowerCase()) ||
+      sale.PEDIDO_ID.toLowerCase().includes(query.toLowerCase()) ||
+      sale.CLIENTE_NOMBRE.toLowerCase().includes(query.toLowerCase())
     );
     setSales(filtered);
   };
@@ -102,65 +103,29 @@ export default function TabVentasScreen() {
     router.push({ pathname: '/venta-modal', params: { venta: JSON.stringify(venta) } });
   };
 
-  // 2. Navigation handler for the new screen
   const handleCreateVenta = () => {
     router.push('/crear-venta-modal');
   };
 
   const styles = StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    card: {
-      marginBottom: 16,
-      backgroundColor: theme.colors.surface,
-    },
-    searchbar: {
-      marginBottom: 16,
-    },
-    priceFilterContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginBottom: 8,
-    },
-    dateFilterContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginBottom: 16,
-    },
-    filterButton: {
-      flex: 1,
-      marginHorizontal: 4,
-    },
-    dateButton: {
-      flex: 1,
-      marginHorizontal: 2,
-    },
-    title: {
-        marginBottom: 16,
-    },
-    listContent: {
-        paddingHorizontal: 16,
-        paddingTop: 40,
-        paddingBottom: 16,
-    },
-    // 3. Style for the FAB
-    fab: {
-        position: 'absolute',
-        margin: 16,
-        right: 0,
-        bottom: 0,
-        backgroundColor: theme.colors.primary,
-    },
+    safeArea: { flex: 1, backgroundColor: theme.colors.background },
+    card: { marginBottom: 16, backgroundColor: theme.colors.surface },
+    searchbar: { marginBottom: 16 },
+    priceFilterContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
+    dateFilterContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
+    filterButton: { flex: 1, marginHorizontal: 4 },
+    dateButton: { flex: 1, marginHorizontal: 2 },
+    title: { marginBottom: 16 },
+    listContent: { paddingHorizontal: 16, paddingTop: 40, paddingBottom: 16 },
+    fab: { position: 'absolute', margin: 16, right: 0, bottom: 0, backgroundColor: theme.colors.primary },
   });
 
   const renderSale = ({ item }: { item: Venta }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <Title>{item.PRODUCTO}</Title>
+        <Title>Pedido {item.PEDIDO_ID}</Title>
+        <Paragraph>{item.PRODUCTO}</Paragraph>
         <Paragraph>Cliente: {item.CLIENTE_NOMBRE}</Paragraph>
-        <Paragraph>Cantidad: {item.CANTIDAD}</Paragraph>
         <Paragraph>Total: S/{item.TOTAL}</Paragraph>
         <Paragraph>Estado: {item.ESTADO}</Paragraph>
         <Paragraph>Fecha: {new Date(item.createdAt).toLocaleDateString()}</Paragraph>
@@ -178,29 +143,19 @@ export default function TabVentasScreen() {
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderSale}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
             <View>
-              <ThemedText
-                type="title"
-                style={styles.title}>
-                Ventas
-              </ThemedText>
+              <ThemedText type="title" style={styles.title}>Ventas</ThemedText>
               <Searchbar
-                placeholder="Buscar producto"
+                placeholder="Buscar por Pedido, Producto o Cliente"
                 onChangeText={handleSearch}
                 value={searchQuery}
                 style={styles.searchbar}
               />
               <View style={styles.priceFilterContainer}>
-                <Button mode="contained" onPress={() => handleSort('desc')} style={styles.filterButton}>
-                  Mayor total
-                </Button>
-                <Button mode="contained" onPress={() => handleSort('asc')} style={styles.filterButton}>
-                  Menor total
-                </Button>
+                <Button mode="contained" onPress={() => handleSort('desc')} style={styles.filterButton}>Mayor total</Button>
+                <Button mode="contained" onPress={() => handleSort('asc')} style={styles.filterButton}>Menor total</Button>
               </View>
               <View style={styles.dateFilterContainer}>
                 <Button mode="outlined" onPress={() => handleDateFilter('day')} style={styles.dateButton}>Día</Button>
@@ -211,7 +166,6 @@ export default function TabVentasScreen() {
             </View>
           }
         />
-        {/* 4. Add the FAB to the layout */}
         <FAB
             icon="plus"
             label="Crear Venta"
