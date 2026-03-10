@@ -15,10 +15,11 @@ interface Producto {
 }
 
 interface VentaItem {
-    producto: Producto;
-    finalProductName: string; 
+    id: string; // Unique ID for each cart item
+    producto?: Producto; // Can be optional for manual entries
+    finalProductName: string;
     cantidad: number;
-    precio: number; 
+    precio: number;
     total: number;
 }
 
@@ -78,8 +79,7 @@ export default function CrearVentaModal() {
     const handleSearch = (query: string) => {
         setSearchQuery(query);
         if (query.length > 1) {
-            const filtered = allProducts.filter(p => p.nombre.toLowerCase().includes(query.toLowerCase()));
-            setFilteredProducts(filtered);
+            setFilteredProducts(allProducts.filter(p => p.nombre.toLowerCase().includes(query.toLowerCase())));
         } else {
             setFilteredProducts([]);
         }
@@ -87,8 +87,8 @@ export default function CrearVentaModal() {
 
     const handleSelectProduct = (product: Producto) => {
         setSelectedProduct(product);
-        setSearchQuery(product.nombre); 
-        setFilteredProducts([]); 
+        setSearchQuery(product.nombre);
+        setFilteredProducts([]);
     };
 
     const handleAddItem = () => {
@@ -112,6 +112,7 @@ export default function CrearVentaModal() {
         const finalProductName = `${selectedProduct.nombre}\n\n${contenido}`;
 
         const newItem: VentaItem = {
+            id: `item_${Date.now()}`,
             producto: selectedProduct,
             finalProductName,
             cantidad: cantidadNum,
@@ -119,42 +120,64 @@ export default function CrearVentaModal() {
             total: cantidadNum * selectedProduct.precio_regular,
         };
 
-        setItems([...items, newItem]);
+        setItems(prevItems => [...prevItems, newItem]);
         setSelectedProduct(null);
         setSearchQuery('');
         setCurrentCantidad('1');
     };
-
-    const handleUpdateItem = (index: number, field: 'finalProductName' | 'precio' | 'cantidad', value: string) => {
-        const newItems = [...items];
-        const itemToUpdate = { ...newItems[index] };
-
-        if (field === 'finalProductName') {
-            itemToUpdate.finalProductName = value;
-        } else if (field === 'precio') {
-            const newPrice = parseFloat(value) || 0;
-            itemToUpdate.precio = newPrice;
-            itemToUpdate.total = itemToUpdate.cantidad * newPrice;
-        } else if (field === 'cantidad') {
-            const newCantidad = parseInt(value, 10) || 0;
-            itemToUpdate.cantidad = newCantidad;
-            itemToUpdate.total = newCantidad * itemToUpdate.precio;
-        }
-
-        newItems[index] = itemToUpdate;
-        setItems(newItems);
+    
+    const handleAddItemManual = () => {
+        const newItem: VentaItem = {
+            id: `manual_${Date.now()}`,
+            finalProductName: 'Nuevo Ítem Manual',
+            cantidad: 1,
+            precio: 0,
+            total: 0,
+        };
+        setItems(prevItems => [...prevItems, newItem]);
     };
 
-    const handleRemoveItem = (indexToRemove: number) => {
-        setItems(items.filter((_, index) => index !== indexToRemove));
+    const handleUpdateItem = (id: string, field: 'finalProductName' | 'precio' | 'cantidad', value: string) => {
+        setItems(currentItems =>
+            currentItems.map(item => {
+                if (item.id === id) {
+                    const updatedItem = { ...item };
+                    if (field === 'finalProductName') {
+                        updatedItem.finalProductName = value;
+                    } else if (field === 'precio') {
+                        const newPrice = parseFloat(value) || 0;
+                        updatedItem.precio = newPrice;
+                        updatedItem.total = updatedItem.cantidad * newPrice;
+                    } else if (field === 'cantidad') {
+                        const newCantidad = parseInt(value, 10) || 0;
+                        updatedItem.cantidad = newCantidad;
+                        updatedItem.total = newCantidad * updatedItem.precio;
+                    }
+                    return updatedItem;
+                }
+                return item;
+            })
+        );
+    };
+
+    const handleRemoveItem = (id: string) => {
+        setItems(currentItems => currentItems.filter(item => item.id !== id));
     };
 
     const handleGenerateVenta = async () => {
-        // ... (validation logic remains the same)
+        if (items.length === 0) {
+            Alert.alert('Venta Vacía', 'Debe agregar al menos un producto.');
+            return;
+        }
+        if (!clienteNombre || !nroDocumento) {
+            Alert.alert('Campos Incompletos', 'Complete Nombre y Nro. de Documento del cliente.');
+            return;
+        }
+        // ... more validation logic ...
 
         setIsSubmitting(true);
         const salesPayload = items.map(item => ({
-            PRODUCTO: item.finalProductName, 
+            PRODUCTO: item.finalProductName,
             CANTIDAD: String(item.cantidad),
             PRECIO: String(item.precio),
             TOTAL: String(item.total),
@@ -172,15 +195,15 @@ export default function CrearVentaModal() {
             const response = await fetch(process.env.EXPO_PUBLIC_REGISTER_VENTAM_API!, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(salesPayload), 
+                body: JSON.stringify(salesPayload),
             });
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                throw new Error(`Webhook error: ${errorBody}`);
+                throw new Error(`Error del Webhook: ${errorBody}`);
             }
 
-            Alert.alert('Éxito', `Venta ${nextPedidoId} registrada.`);
+            Alert.alert('Éxito', `Venta ${nextPedidoId} registrada correctamente.`);
             router.back();
 
         } catch (error: any) {
@@ -189,12 +212,13 @@ export default function CrearVentaModal() {
             setIsSubmitting(false);
         }
     };
-    
+
     const styles = StyleSheet.create({
         safeArea: { flex: 1, backgroundColor: theme.colors.background },
         container: { flex: 1 },
         content: { padding: 16, gap: 16 },
         sectionTitle: { fontSize: 20 },
+        sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
         inputGroup: { gap: 12 },
         searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.outlineVariant },
         resultImage: { width: 50, height: 50, borderRadius: 8, marginRight: 10 },
@@ -211,7 +235,6 @@ export default function CrearVentaModal() {
         selectorButtons: { flexDirection: 'row', gap: 10 },
     });
 
-    // --- RENDER --- //
     return (
         <SafeAreaView style={styles.safeArea}>
             <Stack.Screen options={{ title: 'Generar Venta Múltiple' }} />
@@ -238,8 +261,11 @@ export default function CrearVentaModal() {
 
                     {/* --- 2. AÑADIR PRODUCTOS --- */}
                     <View style={styles.inputGroup}>
-                        <Title style={styles.sectionTitle}>2. Añadir Productos</Title>
-                        <Searchbar placeholder="Buscar producto..." onChangeText={handleSearch} value={searchQuery} />
+                        <View style={styles.sectionHeader}>
+                            <Title style={styles.sectionTitle}>2. Añadir Productos</Title>
+                            <Button icon="plus-box-outline" mode="outlined" onPress={handleAddItemManual}>Manual</Button>
+                        </View>
+                        <Searchbar placeholder="O buscar producto existente..." onChangeText={handleSearch} value={searchQuery} />
                         {loadingProducts && <ActivityIndicator />}
                         {filteredProducts.length > 0 && (
                             <ScrollView style={styles.resultsContainer} nestedScrollEnabled>
@@ -270,15 +296,15 @@ export default function CrearVentaModal() {
                             <Text>Aún no has añadido productos.</Text>
                         ) : (
                             <View style={{ gap: 12 }}>
-                                {items.map((item, index) => (
-                                    <View key={index} style={styles.cartItem}>
-                                        <IconButton icon="delete-outline" iconColor={theme.colors.error} onPress={() => handleRemoveItem(index)} style={{ alignSelf: 'flex-start', marginTop: 4 }}/>
+                                {items.map(item => (
+                                    <View key={item.id} style={styles.cartItem}>
+                                        <IconButton icon="delete-outline" iconColor={theme.colors.error} onPress={() => handleRemoveItem(item.id)} style={{ alignSelf: 'flex-start', marginTop: 4 }}/>
                                         <View style={styles.cartItemDetails}>
                                             <TextInput
                                                 mode="outlined"
                                                 label="Descripción del Producto"
                                                 value={item.finalProductName}
-                                                onChangeText={text => handleUpdateItem(index, 'finalProductName', text)}
+                                                onChangeText={text => handleUpdateItem(item.id, 'finalProductName', text)}
                                                 multiline
                                             />
                                             <View style={{flexDirection: 'row', gap: 8, marginTop: 8}}>
@@ -286,7 +312,7 @@ export default function CrearVentaModal() {
                                                     mode="outlined"
                                                     label="Cantidad"
                                                     value={String(item.cantidad)}
-                                                    onChangeText={text => handleUpdateItem(index, 'cantidad', text)}
+                                                    onChangeText={text => handleUpdateItem(item.id, 'cantidad', text)}
                                                     keyboardType="numeric"
                                                     style={{flex: 1}}
                                                 />
@@ -294,7 +320,7 @@ export default function CrearVentaModal() {
                                                     mode="outlined"
                                                     label="Precio Unit. (S/.)"
                                                     value={String(item.precio)}
-                                                    onChangeText={text => handleUpdateItem(index, 'precio', text)}
+                                                    onChangeText={text => handleUpdateItem(item.id, 'precio', text)}
                                                     keyboardType="numeric"
                                                     style={{flex: 1}}
                                                 />
