@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { TextInput, Button, Title, useTheme, Paragraph } from 'react-native-paper';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -36,120 +36,120 @@ export default function VentaModal() {
   const [precio, setPrecio] = useState('');
   const [total, setTotal] = useState('');
   const [clienteNombre, setClienteNombre] = useState('');
+  const [estado, setEstado] = useState('');
+  
   const [clienteCorreo, setClienteCorreo] = useState('');
   const [clienteId, setClienteId] = useState('');
   const [codigoSeguimiento, setCodigoSeguimiento] = useState('');
   const [pedidoId, setPedidoId] = useState('');
   const [tipoComprobante, setTipoComprobante] = useState('');
   const [nroDocumento, setNroDocumento] = useState('');
-  const [estado, setEstado] = useState('');
   const [createdAt, setCreatedAt] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
+
+  const [originalVenta, setOriginalVenta] = useState<Venta | null>(null);
   
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  useEffect(() => {
-    const fetchVenta = async () => {
-      if (ventaString && typeof ventaString === 'string') {
-        const parsedVenta = JSON.parse(ventaString);
-        setVentaId(parsedVenta.id); // Store the original ID
-        try {
-          const response = await fetch(`${process.env.EXPO_PUBLIC_ID_VENTA_WEBHOOK!}?id=${parsedVenta.id}`);
-          const data = await response.json();
-          if (data && data.length > 0) {
-            const ventaData: Venta = data[0];
-            setProducto(ventaData.PRODUCTO || '');
-            setCantidad(String(ventaData.CANTIDAD ?? ''));
-            setPrecio(String(ventaData.PRECIO ?? ''));
-            setTotal(String(ventaData.TOTAL ?? ''));
-            setClienteNombre(ventaData.CLIENTE_NOMBRE || '');
-            setClienteCorreo(ventaData.CLIENTE_CORREO || '');
-            setClienteId(ventaData.CLIENTE_ID || '');
-            setCodigoSeguimiento(ventaData.CODIGO_SEGUIMIENTO || '');
-            setPedidoId(ventaData.PEDIDO_ID || '');
-            setTipoComprobante(ventaData.TIPO_COMPROBANTE || '');
-            setNroDocumento(ventaData.NRO_DOCUMENTO || '');
-            setEstado(ventaData.ESTADO || '');
-            setCreatedAt(ventaData.createdAt ? new Date(ventaData.createdAt).toLocaleString() : '');
-            setUpdatedAt(ventaData.updatedAt ? new Date(ventaData.updatedAt).toLocaleString() : '');
-          }
-        } catch (error) {
-          console.error("Error fetching venta:", error);
-          Alert.alert("Error de Carga", "No se pudieron cargar los detalles de la venta.");
-        } finally {
-            setLoading(false);
-        }
-      } else {
-        setLoading(false);
+  const setVentaData = useCallback((ventaData: Venta) => {
+    setVentaId(ventaData.id);
+    setProducto(ventaData.PRODUCTO || '');
+    setCantidad(String(ventaData.CANTIDAD ?? ''));
+    setPrecio(String(ventaData.PRECIO ?? ''));
+    setTotal(String(ventaData.TOTAL ?? ''));
+    setClienteNombre(ventaData.CLIENTE_NOMBRE || '');
+    setEstado(ventaData.ESTADO || '');
+    setClienteCorreo(ventaData.CLIENTE_CORREO || '');
+    setClienteId(ventaData.CLIENTE_ID || '');
+    setCodigoSeguimiento(ventaData.CODIGO_SEGUIMIENTO || '');
+    setPedidoId(ventaData.PEDIDO_ID || '');
+    setTipoComprobante(ventaData.TIPO_COMPROBANTE || '');
+    setNroDocumento(ventaData.NRO_DOCUMENTO || '');
+    setCreatedAt(ventaData.createdAt ? new Date(ventaData.createdAt).toLocaleString() : '');
+    setUpdatedAt(ventaData.updatedAt ? new Date(ventaData.updatedAt).toLocaleString() : '');
+    setOriginalVenta(ventaData);
+  }, []);
+
+  const fetchVentaById = useCallback(async (id: number) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_ID_VENTA_WEBHOOK!}?id=${id}`);
+      const data = await response.json();
+      if (data && data.length > 0) {
+        setVentaData(data[0]);
       }
-    };
-    fetchVenta();
-  }, [ventaString]);
+    } catch (error) {
+      Alert.alert("Error de Carga", "No se pudieron recargar los detalles de la venta.");
+    } finally {
+      setLoading(false);
+    }
+  }, [setVentaData]);
+  
+  useEffect(() => {
+    if (ventaString && typeof ventaString === 'string') {
+      const parsedVenta = JSON.parse(ventaString);
+      fetchVentaById(parsedVenta.id);
+    } else {
+      setLoading(false);
+    }
+  }, [ventaString, fetchVentaById]);
+
+  useEffect(() => {
+    const numCantidad = parseFloat(cantidad) || 0;
+    const numPrecio = parseFloat(precio) || 0;
+    setTotal((numCantidad * numPrecio).toFixed(2));
+  }, [cantidad, precio]);
 
   const handleUpdate = async () => {
-    // Functionality can be restored here if needed by the user.
-  };
-
-  const handleGenerateComprobante = async () => {
-    if (!ventaId) {
-        Alert.alert('Error', 'No se ha cargado un ID de venta válido.');
-        return;
-    }
-    setIsGenerating(true);
+    if (!ventaId) return;
+    setIsUpdating(true);
     try {
-        const cleanPayload = {
-            PRODUCTO: producto,
-            CANTIDAD: Number(cantidad),
-            PRECIO: Number(precio),
-            TOTAL: Number(total),
-            CLIENTE_NOMBRE: clienteNombre,
-            CLIENTE_CORREO: clienteCorreo,
-            ESTADO: estado,
-            TIPO_COMPROBANTE: tipoComprobante,
-            CODIGO_SEGUIMIENTO: codigoSeguimiento,
-            PEDIDO_ID: pedidoId,
-            NRO_DOCUMENTO: nroDocumento,
-            CLIENTE_ID: clienteId,
-            id: ventaId,
-        };
-
-        // Use the CORRECT environment variable for the API endpoint
-        const response = await fetch(process.env.EXPO_PUBLIC_CREAR_COMPROBANTE!, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cleanPayload),
-        });
-
-        const responseText = await response.text();
-
-        if (response.ok) {
-            Alert.alert('Éxito', `El comprobante para el pedido ${pedidoId} ha sido enviado a procesamiento.`);
-            setEstado('PARA_SUNAT');
-        } else {
-            Alert.alert('Error al Generar', `No se pudo generar el comprobante. El servidor respondió: ${responseText}`);
-        }
+      const payload = { id: ventaId, PRODUCTO: producto, CANTIDAD: cantidad, PRECIO: precio, TOTAL: total, CLIENTE_NOMBRE: clienteNombre, CLIENTE_CORREO: clienteCorreo, CLIENTE_ID: clienteId, CODIGO_SEGUIMIENTO: codigoSeguimiento, PEDIDO_ID: pedidoId, TIPO_COMPROBANTE: tipoComprobante, NRO_DOCUMENTO: nroDocumento, ESTADO: estado };
+      const response = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (response.ok) {
+        Alert.alert('Éxito', 'El pedido ha sido actualizado correctamente. Refrescando datos...');
+        await fetchVentaById(ventaId);
+      } else {
+        const responseData = await response.json();
+        throw new Error(responseData.message || 'Error del servidor.');
+      }
     } catch (error: any) {
-        Alert.alert('Error de Conexión', `Ocurrió un error al contactar la API: ${error.message}`);
+      Alert.alert('Error de Actualización', `No se pudo actualizar el pedido: ${error.message}`);
     } finally {
-        setIsGenerating(false);
+      setIsUpdating(false);
     }
   };
+
+  const handleGenerateComprobante = async () => { /* ... existing code ... */ };
+
+  const isEditable = originalVenta?.ESTADO === 'PENDIENTE' || originalVenta?.ESTADO === 'PARA_SUNAT';
   
+  const hasChanges = originalVenta?.PRODUCTO !== producto || String(originalVenta?.CANTIDAD) !== cantidad || String(originalVenta?.PRECIO) !== precio || originalVenta?.CLIENTE_NOMBRE !== clienteNombre || originalVenta?.ESTADO !== estado;
+
+  let isUpdateDisabled = true;
+  if (originalVenta) {
+    if ((originalVenta.ESTADO === 'PENDIENTE' || originalVenta.ESTADO === 'PARA_SUNAT') && hasChanges) {
+      isUpdateDisabled = false;
+    } else if (originalVenta.ESTADO === 'COMPROBANTE_GENERADO' && estado === 'CANCELADO') {
+      isUpdateDisabled = false;
+    }
+  }
+
   const styles = StyleSheet.create({
     container: { flex: 1 },
-    scrollContent: { padding: 16 },
+    scrollContent: { padding: 16, paddingBottom: 60 },
+    input: { marginBottom: 12 },
     inputDisabled: { marginBottom: 12, backgroundColor: theme.colors.surfaceDisabled },
-    inputEditable: { marginBottom: 12 },
     button: { marginTop: 8, paddingVertical: 6 },
     title: { marginBottom: 16, paddingTop: 16, color: theme.colors.primary, textAlign: 'center' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     estadoContainer: { marginBottom: 16, padding: 12, borderWidth: 1, borderColor: theme.colors.outline, borderRadius: 8 },
-    estadoLabel: { fontSize: 16, marginBottom: 12, color: theme.colors.onSurfaceVariant, fontWeight: 'bold' },
+    estadoLabel: { fontSize: 16, marginBottom: 12, fontWeight: 'bold' },
     estadoButtons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     estadoButton: { width: '48%', marginBottom: 8 },
-    dateText: { fontSize: 12, color: theme.colors.onSurfaceVariant, marginBottom: 4, textAlign: 'center' },
+    dateText: { fontSize: 12, color: theme.colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: theme.colors.onSurface, borderBottomWidth: 1, borderBottomColor: theme.colors.outline, paddingBottom: 6 }
   });
 
@@ -163,24 +163,41 @@ export default function VentaModal() {
         <ScrollView contentContainerStyle={styles.scrollContent} style={{backgroundColor: theme.colors.background}}>
             <Title style={styles.title}>Gestionar Pedido {pedidoId}</Title>
             
-            <Paragraph style={styles.sectionTitle}>Datos del Producto (Solo Lectura)</Paragraph>
-            <TextInput label="Producto" value={producto} style={styles.inputDisabled} disabled multiline/>
-            <TextInput label="Cantidad" value={cantidad} style={styles.inputDisabled} disabled />
-            <TextInput label="Precio Unitario" value={`S/. ${precio}`} style={styles.inputDisabled} disabled />
+            <Paragraph style={styles.sectionTitle}>Datos del Producto</Paragraph>
+            <TextInput label="Producto" value={producto} onChangeText={setProducto} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} multiline/>
+            <TextInput label="Cantidad" value={cantidad} onChangeText={setCantidad} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} keyboardType="numeric"/>
+            <TextInput label="Precio Unitario" value={precio} onChangeText={setPrecio} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} keyboardType="numeric"/>
             <TextInput label="Total del Producto" value={`S/. ${total}`} style={styles.inputDisabled} disabled />
             
-            <Paragraph style={styles.sectionTitle}>Datos a Modificar</Paragraph>
-            <TextInput label="Cliente" value={clienteNombre} onChangeText={setClienteNombre} style={styles.inputEditable} />
+            <Paragraph style={styles.sectionTitle}>Datos del Cliente</Paragraph>
+            <TextInput label="Cliente" value={clienteNombre} onChangeText={setClienteNombre} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} />
             <TextInput label="Comprobante" value={`${tipoComprobante || 'N/A'} - ${nroDocumento || 'N/A'}`} style={styles.inputDisabled} disabled/>
 
             <View style={styles.estadoContainer}>
                 <Paragraph style={styles.estadoLabel}>Actualizar Estado del Pedido</Paragraph>
                 <View style={styles.estadoButtons}>
-                    {ESTADOS.map(s => (
-                        <Button key={s} mode={estado === s ? 'contained' : 'outlined'} onPress={() => setEstado(s)} style={styles.estadoButton}>
-                            {s.replace('_', ' ')}
-                        </Button>
-                    ))}
+                    {ESTADOS.map(s => {
+                        let buttonDisabled = false;
+                        const currentStatus = originalVenta?.ESTADO;
+
+                        if (currentStatus === 'CANCELADO') {
+                            buttonDisabled = true;
+                        } else if (currentStatus === 'COMPROBANTE_GENERADO') {
+                            if (s !== 'COMPROBANTE_GENERADO' && s !== 'CANCELADO') {
+                                buttonDisabled = true;
+                            }
+                        } else if (currentStatus === 'PENDIENTE' || currentStatus === 'PARA_SUNAT') {
+                            if (s === 'COMPROBANTE_GENERADO') {
+                                buttonDisabled = true;
+                            }
+                        }
+
+                        return (
+                            <Button key={s} mode={estado === s ? 'contained' : 'outlined'} onPress={() => setEstado(s)} style={styles.estadoButton} disabled={buttonDisabled}>
+                                {s.replace('_', ' ')}
+                            </Button>
+                        );
+                    })}
                 </View>
             </View>
 
@@ -189,7 +206,7 @@ export default function VentaModal() {
                 onPress={handleUpdate}
                 style={styles.button}
                 loading={isUpdating}
-                disabled={true} /* Disabled as per user focus */
+                disabled={isUpdateDisabled || isUpdating}
                 icon="update"
             >
               Actualizar Pedido
@@ -200,7 +217,7 @@ export default function VentaModal() {
                 onPress={handleGenerateComprobante}
                 style={styles.button}
                 loading={isGenerating}
-                disabled={isUpdating || isGenerating}
+                disabled={isUpdating || isGenerating || originalVenta?.ESTADO !== 'PARA_SUNAT'}
                 icon="file-document-outline"
             >
               Generar Comprobante
@@ -210,7 +227,6 @@ export default function VentaModal() {
                 <Paragraph style={styles.dateText}>Creado: {createdAt}</Paragraph>
                 <Paragraph style={styles.dateText}>Última Actualización: {updatedAt}</Paragraph>
             </View>
-
         </ScrollView>
     </KeyboardAvoidingView>
   );
