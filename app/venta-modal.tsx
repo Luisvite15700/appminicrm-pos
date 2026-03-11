@@ -122,7 +122,78 @@ export default function VentaModal() {
     }
   };
 
-  const handleGenerateComprobante = async () => { /* ... existing code ... */ };
+  const handleGenerateComprobante = async () => {
+    if (!originalVenta) {
+        Alert.alert("Error", "Datos de la venta no disponibles. Por favor, recargue.");
+        return;
+    }
+
+    setIsGenerating(true);
+    try {
+        let sunatDocType;
+        switch (originalVenta.TIPO_COMPROBANTE) {
+            case 'Factura':
+                sunatDocType = '6'; // RUC
+                break;
+            case 'Boleta':
+                sunatDocType = '1'; // DNI
+                break;
+            default:
+                Alert.alert("Error de Datos", `Tipo de comprobante no válido: '${originalVenta.TIPO_COMPROBANTE}'. Se esperaba 'Factura' o 'Boleta'.`);
+                setIsGenerating(false);
+                return;
+        }
+
+        const payload = {
+            customer: {
+                name: originalVenta.CLIENTE_NOMBRE,
+                email: originalVenta.CLIENTE_CORREO,
+                doc_type: sunatDocType,
+                doc_number: originalVenta.NRO_DOCUMENTO,
+            },
+            items: [
+                {
+                    description: originalVenta.PRODUCTO,
+                    quantity: Number(originalVenta.CANTIDAD),
+                    price: Number(originalVenta.PRECIO),
+                },
+            ],
+            PEDIDO_ID: originalVenta.PEDIDO_ID, // CORRECTED from internal_id
+        };
+
+        const response = await fetch(process.env.EXPO_PUBLIC_CREAR_COMPROBANTE!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'El servicio de facturación respondió con un error.');
+        }
+
+        Alert.alert("Éxito", "El comprobante fue enviado para su procesamiento.");
+        
+        const updatePayload = { ...originalVenta, ESTADO: 'COMPROBANTE_GENERADO' };
+        const updateResponse = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatePayload),
+        });
+
+        if (!updateResponse.ok) {
+            Alert.alert("Aviso", "El comprobante se generó, pero el estado del pedido no pudo actualizarse. Por favor, actualice manualmente.");
+        }
+        
+        await fetchVentaById(originalVenta.id);
+
+    } catch (error: any) {
+        Alert.alert("Error al Generar", `No se pudo procesar el comprobante: ${error.message}`);
+    } finally {
+        setIsGenerating(false);
+    }
+};
+
 
   const isEditable = originalVenta?.ESTADO === 'PENDIENTE' || originalVenta?.ESTADO === 'PARA_SUNAT';
   
