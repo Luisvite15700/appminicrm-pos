@@ -1,8 +1,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, RefreshControl, Text } from 'react-native';
+import { StyleSheet, View, ScrollView, RefreshControl } from 'react-native';
 import { DataTable, Searchbar, useTheme, Title, Button, Portal, Dialog, Chip } from 'react-native-paper';
-import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PdfViewerModal from '../../components/PdfViewerModal';
 
@@ -12,7 +11,6 @@ interface Factura {
   nombre: string;
   tipo: string;
   estado: string;
-  issueTime: number;
   issueDate: string;
   responseDate: string;
   urlA4: string;
@@ -38,7 +36,7 @@ export default function FacturasScreen() {
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [originalFacturas, setOriginalFacturas] = useState<Factura[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const theme = useTheme();
 
   // Dialogs and Modals state
@@ -53,7 +51,6 @@ export default function FacturasScreen() {
     try {
       const response = await fetch(process.env.EXPO_PUBLIC_OBTENER_PDF!);
       const apiResponse = await response.json();
-
       const rawFacturas: ApiFactura[] = Array.isArray(apiResponse.data) ? apiResponse.data : [];
 
       const formattedFacturas = rawFacturas
@@ -63,7 +60,6 @@ export default function FacturasScreen() {
           nombre: item.fileName,
           tipo: item.type,
           estado: item.status || 'N/A',
-          issueTime: item.issueTime,
           issueDate: item.issueDate || 'N/A',
           responseDate: item.responseDate || 'N/A',
           urlA4: item.pdfA4,
@@ -79,18 +75,24 @@ export default function FacturasScreen() {
     }
   }, []);
 
-  // Effect to fetch data on focus
-  useFocusEffect(useCallback(() => { fetchFacturas(); }, [fetchFacturas]));
-
-  // Effect to update time for dynamic status changes
+  // Fetch data on initial mount and set up a 40-minute interval
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    if (isInitialLoad) {
+      fetchFacturas();
+      setIsInitialLoad(false);
+    }
 
-  const onRefresh = useCallback(() => { fetchFacturas(); }, [fetchFacturas]);
+    const interval = setInterval(() => {
+      fetchFacturas();
+    }, 40 * 60 * 1000); // 40 minutes
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [fetchFacturas, isInitialLoad]);
+
+  const onRefresh = useCallback(() => {
+    setIsInitialLoad(true); // Allow manual refresh to fetch data
+    fetchFacturas();
+  }, [fetchFacturas]);
 
   // --- HELPER FUNCTIONS --- //
   const getTipoDocumento = (tipo: string) => {
@@ -161,27 +163,17 @@ export default function FacturasScreen() {
 
   // --- CHILD COMPONENTS --- //
 
-  // Status Chip Component with new, improved colors
-  const StatusChip = ({ status, issueTime }: { status: string; issueTime: number }) => {
-    const tenMinutesInSeconds = 600;
-    const timeDifference = (currentTime / 1000) - issueTime;
-
-    if (status === 'EXCEPCION') {
-      if (timeDifference > tenMinutesInSeconds) {
-        // Warning color (Reintentar)
-        return <Chip icon="sync-alert" selectedColor="#7F5F01" style={{ backgroundColor: '#FFECB3' }}>Reintentar</Chip>;
-      }
-      // Neutral color (Validando)
-      return <Chip icon="timer-sand" selectedColor={theme.colors.onSurfaceVariant} style={{ backgroundColor: theme.colors.surfaceVariant }}>Validando</Chip>;
-    }
-
+  // Simplified, "dumb" StatusChip component
+  const StatusChip = ({ status }: { status: string }) => {
     switch (status) {
       case 'ACEPTADO':
-        // Success color
         return <Chip icon="check-circle" selectedColor="#0B6A38" style={{ backgroundColor: '#D1F4E1' }}>Aceptado</Chip>;
       case 'RECHAZADO':
-        // Correct error color from theme (no more pink!)
         return <Chip icon="alert-circle" selectedColor={theme.colors.onErrorContainer} style={{ backgroundColor: theme.colors.errorContainer }}>Rechazado</Chip>;
+      case 'EXCEPCION':
+        return <Chip icon="sync-alert" selectedColor="#7F5F01" style={{ backgroundColor: '#FFECB3' }}>Reintentar</Chip>;
+      case 'VALIDANDO':
+         return <Chip icon="timer-sand" selectedColor={theme.colors.onSurfaceVariant} style={{ backgroundColor: theme.colors.surfaceVariant }}>Validando</Chip>;
       default:
         return <Chip>{status}</Chip>;
     }
@@ -234,7 +226,7 @@ export default function FacturasScreen() {
                         <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
                         <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
                         <DataTable.Cell style={styles.colEstado}>
-                          <StatusChip status={item.estado} issueTime={item.issueTime} />
+                          <StatusChip status={item.estado} />
                         </DataTable.Cell>
                         <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
                         <DataTable.Cell style={styles.colFechaRespuesta}>{item.responseDate}</DataTable.Cell>
