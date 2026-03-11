@@ -1,7 +1,8 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, RefreshControl } from 'react-native';
-import { DataTable, Searchbar, useTheme, Title, Button, Portal, Dialog, Chip } from 'react-native-paper';
+import { StyleSheet, View, ScrollView, RefreshControl, Text } from 'react-native';
+import { DataTable, Searchbar, useTheme, Title, Button, Portal, Dialog, Chip, IconButton } from 'react-native-paper';
+import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PdfViewerModal from '../../components/PdfViewerModal';
 
@@ -29,6 +30,8 @@ interface ApiFactura {
   pdfTicket80: string;
 }
 
+const ITEMS_PER_PAGE = 12;
+
 // --- SCREEN COMPONENT --- //
 export default function FacturasScreen() {
   // --- STATE MANAGEMENT --- //
@@ -36,8 +39,10 @@ export default function FacturasScreen() {
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [originalFacturas, setOriginalFacturas] = useState<Factura[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const theme = useTheme();
+
+  // Pagination state
+  const [page, setPage] = useState(0);
 
   // Dialogs and Modals state
   const [formatDialogVisible, setFormatDialogVisible] = useState(false);
@@ -46,6 +51,7 @@ export default function FacturasScreen() {
   const [pdfUrlToView, setPdfUrlToView] = useState<string | null>(null);
 
   // --- DATA FETCHING & PROCESSING --- //
+  // This function now only fetches and stores the data.
   const fetchFacturas = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -66,33 +72,37 @@ export default function FacturasScreen() {
           urlTicket: item.pdfTicket80,
         }));
 
-      setFacturas(formattedFacturas);
       setOriginalFacturas(formattedFacturas);
+      setFacturas(formattedFacturas);
+      setSearchQuery(''); // Clear search on refresh
+      setPage(0);
+
     } catch (error) {
       console.error("Error fetching facturas:", error);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, []); // No dependencies, it's a stable function
 
-  // Fetch data on initial mount and set up a 40-minute interval
-  useEffect(() => {
-    if (isInitialLoad) {
-      fetchFacturas();
-      setIsInitialLoad(false);
-    }
+  // Fetch data when the screen is focused for the first time.
+  useFocusEffect(
+    useCallback(() => {
+      if (originalFacturas.length === 0) {
+        fetchFacturas();
+      }
+    }, [originalFacturas.length, fetchFacturas])
+  );
 
-    const interval = setInterval(() => {
-      fetchFacturas();
-    }, 40 * 60 * 1000); // 40 minutes
-
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, [fetchFacturas, isInitialLoad]);
-
+  // --- REFRESH --- //
   const onRefresh = useCallback(() => {
-    setIsInitialLoad(true); // Allow manual refresh to fetch data
     fetchFacturas();
   }, [fetchFacturas]);
+
+  // --- PAGINATION LOGIC --- //
+  const from = page * ITEMS_PER_PAGE;
+  const to = from + ITEMS_PER_PAGE;
+  const paginatedFacturas = facturas.slice(from, to);
+  const totalPages = Math.ceil(facturas.length / ITEMS_PER_PAGE);
 
   // --- HELPER FUNCTIONS --- //
   const getTipoDocumento = (tipo: string) => {
@@ -130,17 +140,24 @@ export default function FacturasScreen() {
   };
 
   // --- SEARCH LOGIC --- //
+  // This now runs only on the client side, which is much faster.
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    const lowerCaseQuery = query.toLowerCase();
-    const filtered = originalFacturas.filter(item =>
-      (formatNombre(item.nombre).toLowerCase().includes(lowerCaseQuery)) ||
-      (getTipoDocumento(item.tipo).toLowerCase().includes(lowerCaseQuery)) ||
-      (item.estado && item.estado.toLowerCase().includes(lowerCaseQuery)) ||
-      (item.issueDate && item.issueDate.toLowerCase().includes(lowerCaseQuery)) ||
-      (item.responseDate && item.responseDate.toLowerCase().includes(lowerCaseQuery))
-    );
-    setFacturas(filtered);
+    setPage(0); 
+
+    if (query === '') {
+      setFacturas(originalFacturas);
+    } else {
+      const lowerCaseQuery = query.toLowerCase();
+      const filtered = originalFacturas.filter(item =>
+        (formatNombre(item.nombre).toLowerCase().includes(lowerCaseQuery)) ||
+        (getTipoDocumento(item.tipo).toLowerCase().includes(lowerCaseQuery)) ||
+        (item.estado && item.estado.toLowerCase().includes(lowerCaseQuery)) ||
+        (item.issueDate && item.issueDate.toLowerCase().includes(lowerCaseQuery)) ||
+        (item.responseDate && item.responseDate.toLowerCase().includes(lowerCaseQuery))
+      );
+      setFacturas(filtered);
+    }
   };
 
   // --- STYLES --- //
@@ -148,8 +165,26 @@ export default function FacturasScreen() {
     safeArea: { flex: 1, backgroundColor: theme.colors.background },
     container: { flex: 1 },
     headerContainer: { paddingHorizontal: 16 },
-    title: { marginTop: 16, marginBottom: 16 },
-    searchbar: { marginBottom: 16 },
+    title: { marginTop: 16, marginBottom: 8 },
+    searchAndPaginationContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    searchbar: { flex: 1 },
+    paginationControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: 8,
+    },
+    pageNumber: {
+        marginHorizontal: 8,
+        fontSize: 16,
+        color: theme.colors.onSurface,
+    },
+    tableContainer: {
+        flex: 1,
+    },
     tableHeader: { backgroundColor: theme.colors.surface },
     dialogButton: { marginTop: 8 },
     table: { minWidth: 950 },
@@ -162,8 +197,6 @@ export default function FacturasScreen() {
   });
 
   // --- CHILD COMPONENTS --- //
-
-  // Simplified, "dumb" StatusChip component
   const StatusChip = ({ status }: { status: string }) => {
     switch (status) {
       case 'ACEPTADO':
@@ -199,44 +232,53 @@ export default function FacturasScreen() {
       <View style={styles.container}>
         <View style={styles.headerContainer}>
             <Title style={styles.title}>Facturas y Documentos</Title>
-            <Searchbar
-            placeholder="Buscar..."
-            onChangeText={handleSearch}
-            value={searchQuery}
-            style={styles.searchbar}
-            />
+            <View style={styles.searchAndPaginationContainer}>
+                <Searchbar
+                    placeholder="Buscar..."
+                    onChangeText={handleSearch}
+                    value={searchQuery}
+                    style={styles.searchbar}
+                />
+                <View style={styles.paginationControls}>
+                    <IconButton icon="chevron-left" onPress={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} />
+                    <Text style={styles.pageNumber}>{`${page + 1} / ${totalPages}`}</Text>
+                    <IconButton icon="chevron-right" onPress={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} />
+                </View>
+            </View>
         </View>
 
-        <ScrollView 
-          horizontal 
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
-            <DataTable style={styles.table}>
-                <DataTable.Header style={styles.tableHeader}>
-                    <DataTable.Title style={styles.colNombre}>Serie-Correlativo</DataTable.Title>
-                    <DataTable.Title style={styles.colTipo}>Tipo</DataTable.Title>
-                    <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
-                    <DataTable.Title style={styles.colFechaEmision}>Fecha Emisión</DataTable.Title>
-                    <DataTable.Title style={styles.colFechaRespuesta}>Fecha Resp. SUNAT</DataTable.Title>
-                    <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
-                </DataTable.Header>
+        <View style={styles.tableContainer}>
+            <ScrollView
+              horizontal
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            >
+                <DataTable style={styles.table}>
+                    <DataTable.Header style={styles.tableHeader}>
+                        <DataTable.Title style={styles.colNombre}>Serie-Correlativo</DataTable.Title>
+                        <DataTable.Title style={styles.colTipo}>Tipo</DataTable.Title>
+                        <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
+                        <DataTable.Title style={styles.colFechaEmision}>Fecha Emisión</DataTable.Title>
+                        <DataTable.Title style={styles.colFechaRespuesta}>Fecha Resp. SUNAT</DataTable.Title>
+                        <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
+                    </DataTable.Header>
 
-                {facturas.map((item) => (
-                    <DataTable.Row key={item.id}>
-                        <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
-                        <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
-                        <DataTable.Cell style={styles.colEstado}>
-                          <StatusChip status={item.estado} />
-                        </DataTable.Cell>
-                        <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
-                        <DataTable.Cell style={styles.colFechaRespuesta}>{item.responseDate}</DataTable.Cell>
-                        <DataTable.Cell style={styles.colAccion}>
-                            <Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button>
-                        </DataTable.Cell>
-                    </DataTable.Row>
-                ))}
-            </DataTable>
-        </ScrollView>
+                    {paginatedFacturas.map((item) => (
+                        <DataTable.Row key={item.id}>
+                            <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
+                            <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
+                            <DataTable.Cell style={styles.colEstado}>
+                              <StatusChip status={item.estado} />
+                            </DataTable.Cell>
+                            <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
+                            <DataTable.Cell style={styles.colFechaRespuesta}>{item.responseDate}</DataTable.Cell>
+                            <DataTable.Cell style={styles.colAccion}>
+                                <Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button>
+                            </DataTable.Cell>
+                        </DataTable.Row>
+                    ))}
+                </DataTable>
+            </ScrollView>
+        </View>
       </View>
     </SafeAreaView>
   );
