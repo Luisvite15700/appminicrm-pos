@@ -174,9 +174,12 @@ export default function CrearVentaModal() {
             Alert.alert('Campos Incompletos', 'Complete Nombre y Nro. de Documento del cliente.');
             return;
         }
-        // ... more validation logic ...
 
         setIsSubmitting(true);
+
+        // --- BUG FIX: Invertir el tipo de comprobante antes de enviar ---
+        const finalTipoComprobante = tipoComprobante === 'Boleta de Venta' ? 'Factura' : 'Boleta de Venta';
+
         const salesPayload = items.map(item => ({
             PRODUCTO: item.finalProductName,
             CANTIDAD: String(item.cantidad),
@@ -185,7 +188,7 @@ export default function CrearVentaModal() {
             CLIENTE_NOMBRE: clienteNombre,
             CLIENTE_CORREO: clienteCorreo || 'admin@gmail.com',
             NRO_DOCUMENTO: nroDocumento,
-            TIPO_COMPROBANTE: tipoComprobante,
+            TIPO_COMPROBANTE: finalTipoComprobante, // Usar el valor corregido
             ESTADO: 'PENDIENTE',
             CODIGO_SEGUIMIENTO: "51999999999",
             CLIENTE_ID: clienteTelefono || '', // Saving the phone number in CLIENTE_ID
