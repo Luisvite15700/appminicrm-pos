@@ -1,15 +1,19 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { TextInput, Button, Title, useTheme, HelperText } from 'react-native-paper';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// Matches the structure of the API response you provided
 interface ApiCliente {
-  CLIENTE_NOMBRE: string;
-  CLIENTE_EMAIL: string;
-  CLIENTE_ID: string; // WhatsApp number
-  PEDIDO_ID: string; // Unique client identifier
+    NOMBRE: string;
+    CORREO: string;
+    WHATSAPP: number | string;
+    IDENTIFICADOR: number | string;
+    ESTADO: string;
+    PEDIDO_ID: string; 
+    id: number;
 }
 
 export default function ClienteDetalleModal() {
@@ -34,9 +38,10 @@ export default function ClienteDetalleModal() {
       try {
         const parsedCliente: ApiCliente = JSON.parse(clienteString);
         setOriginalCliente(parsedCliente);
-        setNombre(parsedCliente.CLIENTE_NOMBRE || '');
-        setEmail(parsedCliente.CLIENTE_EMAIL || '');
-        setTelefono(parsedCliente.CLIENTE_ID || '');
+        // Map from the correct API fields (NOMBRE, CORREO, etc.)
+        setNombre(parsedCliente.NOMBRE || '');
+        setEmail(parsedCliente.CORREO || '');
+        setTelefono(String(parsedCliente.WHATSAPP) || ''); // Ensure telefono is a string
       } catch (e) {
         setError("No se pudieron cargar los datos del cliente.");
       }
@@ -54,15 +59,16 @@ export default function ClienteDetalleModal() {
     setIsUpdating(true);
     setError(null);
     try {
+        // Adjust payload to match the API's expected format
         const payload = {
-            ...originalCliente, // Send original data
-            CLIENTE_NOMBRE: nombre, // And new values
-            CLIENTE_EMAIL: email,
-            CLIENTE_ID: telefono,
+            ...originalCliente, // Preserve original data like id, PEDIDO_ID
+            NOMBRE: nombre,      // Send updated values
+            CORREO: email,
+            WHATSAPP: telefono,
         };
 
       const response = await fetch(updateUrl, {
-          method: 'POST',
+          method: 'POST', // Or PUT, depending on your API
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload) 
         });
@@ -83,10 +89,11 @@ export default function ClienteDetalleModal() {
     }
   };
 
+  // Check for changes against the correct fields
   const hasChanges = 
-    originalCliente?.CLIENTE_NOMBRE !== nombre ||
-    originalCliente?.CLIENTE_EMAIL !== email ||
-    originalCliente?.CLIENTE_ID !== telefono;
+    originalCliente?.NOMBRE !== nombre ||
+    originalCliente?.CORREO !== email ||
+    String(originalCliente?.WHATSAPP) !== telefono;
 
   const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: theme.colors.background },

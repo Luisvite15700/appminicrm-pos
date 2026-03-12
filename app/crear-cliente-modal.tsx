@@ -14,7 +14,6 @@ export default function CrearClienteModal() {
     const [telefono, setTelefono] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Use the correct environment variable for creating a client
     const apiUrl = process.env.EXPO_PUBLIC_CLIENTE_CREAR;
 
     const handleCreateCliente = async () => {
@@ -32,10 +31,11 @@ export default function CrearClienteModal() {
 
         const uniqueId = `CL-${Date.now()}`;
 
+        // Adjust payload to match the API's expected format (NOMBRE, CORREO, etc.)
         const payload = {
-            CLIENTE_NOMBRE: nombre,
-            CLIENTE_EMAIL: email || '',
-            CLIENTE_ID: telefono, 
+            NOMBRE: nombre,
+            CORREO: email || '',
+            WHATSAPP: telefono, 
             PEDIDO_ID: uniqueId,
             ESTADO: 'ACTIVO',
         };
@@ -111,7 +111,7 @@ export default function CrearClienteModal() {
                         onPress={handleCreateCliente} 
                         style={{ marginTop: 24, paddingVertical: 8 }}
                         loading={isSubmitting}
-                        disabled={isSubmitting || !apiUrl} // Disable button if API URL is not set
+                        disabled={isSubmitting || !apiUrl}
                         icon="content-save"
                     >
                         Guardar Cliente

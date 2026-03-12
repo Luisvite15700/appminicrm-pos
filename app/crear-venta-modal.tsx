@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useTheme, Searchbar, Title, Text, ActivityIndicator, TextInput, Button, IconButton, Divider } from 'react-native-paper';
 import { Stack, useRouter } from 'expo-router';
@@ -27,59 +27,54 @@ interface VentaItem {
 export default function CrearVentaModal() {
     const theme = useTheme();
     const router = useRouter();
+    const searchbarRef = useRef<TextInput>(null);
 
     // --- STATE --- //
     const [clienteNombre, setClienteNombre] = useState('');
     const [clienteCorreo, setClienteCorreo] = useState('');
-    const [clienteTelefono, setClienteTelefono] = useState(''); // State for the phone number
+    const [clienteTelefono, setClienteTelefono] = useState('');
     const [nroDocumento, setNroDocumento] = useState('');
     const [tipoComprobante, setTipoComprobante] = useState('Boleta de Venta');
-    const [nextPedidoId, setNextPedidoId] = useState('');
-    const [loadingPedidoId, setLoadingPedidoId] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [allProducts, setAllProducts] = useState<Producto[]>([]);
     const [filteredProducts, setFilteredProducts] = useState<Producto[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
-    const [loadingProducts, setLoadingProducts] = useState(true);
+    const [loadingProducts, setLoadingProducts] = useState(false); // Only true when fetching
+    const [productsFetched, setProductsFetched] = useState(false); // Track if fetch has occurred
     const [items, setItems] = useState<VentaItem[]>([]);
     const [saleTotal, setSaleTotal] = useState(0);
     const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
     const [currentCantidad, setCurrentCantidad] = useState('1');
 
     // --- EFFECTS --- //
-    useEffect(() => {
-        const fetchInitialData = async () => {
-            setLoadingProducts(true);
-            setLoadingPedidoId(true);
-            try {
-                const [productsRes, correlativoRes] = await Promise.all([
-                    fetch(process.env.EXPO_PUBLIC_INVENTORY_LIST_API!),
-                    fetch(process.env.EXPO_PUBLIC_OBTENER_ID_PEDIDO!)
-                ]);
-                const productsData: Producto[] = await productsRes.json();
-                setAllProducts(productsData);
-                const correlativoData = await correlativoRes.json();
-                setNextPedidoId(correlativoData?.[0]?.siguiente_pedido_id || 'ID_ERROR');
-            } catch (error) {
-                console.error("Error fetching initial data:", error);
-                setNextPedidoId('ID_ERROR');
-            } finally {
-                setLoadingProducts(false);
-                setLoadingPedidoId(false);
-            }
-        };
-        fetchInitialData();
-    }, []);
-
+    // Effect for calculating the total sale amount whenever items change
     useEffect(() => {
         const total = items.reduce((sum, item) => sum + item.total, 0);
         setSaleTotal(total);
     }, [items]);
 
     // --- HANDLERS --- //
+    // Lazy load products when the search bar is focused
+    const handleSearchFocus = async () => {
+        if (productsFetched) return; // Don't fetch if we already have the products
+
+        setLoadingProducts(true);
+        try {
+            const productsRes = await fetch(process.env.EXPO_PUBLIC_INVENTORY_LIST_API!);
+            const productsData: Producto[] = await productsRes.json();
+            setAllProducts(productsData);
+            setProductsFetched(true); // Mark as fetched
+        } catch (error) {
+            console.error("Error fetching products:", error);
+            Alert.alert("Error", "No se pudieron cargar los productos. Intente de nuevo.");
+        } finally {
+            setLoadingProducts(false);
+        }
+    };
+
     const handleSearch = (query: string) => {
         setSearchQuery(query);
-        if (query.length > 1) {
+        if (query.length > 1 && productsFetched) {
             setFilteredProducts(allProducts.filter(p => p.nombre.toLowerCase().includes(query.toLowerCase())));
         } else {
             setFilteredProducts([]);
@@ -177,25 +172,35 @@ export default function CrearVentaModal() {
 
         setIsSubmitting(true);
 
-        // --- DEFINITIVE BUG FIX: Invertimos la lógica intencionadamente ---
-        const finalTipoComprobante = tipoComprobante;
-
-        const salesPayload = items.map(item => ({
-            PRODUCTO: item.finalProductName,
-            CANTIDAD: String(item.cantidad),
-            PRECIO: String(item.precio),
-            TOTAL: String(item.total),
-            CLIENTE_NOMBRE: clienteNombre,
-            CLIENTE_CORREO: clienteCorreo || 'admin@gmail.com',
-            NRO_DOCUMENTO: nroDocumento,
-            TIPO_COMPROBANTE: finalTipoComprobante, // Usar el valor invertido para que llegue correcto
-            ESTADO: 'PENDIENTE',
-            CODIGO_SEGUIMIENTO: "51999999999",
-            CLIENTE_ID: clienteTelefono || '', // Saving the phone number in CLIENTE_ID
-            PEDIDO_ID: nextPedidoId,
-        }));
-
         try {
+            // 1. Fetch the next Pedido ID on demand
+            const correlativoRes = await fetch(process.env.EXPO_PUBLIC_OBTENER_ID_PEDIDO!);
+            const correlativoData = await correlativoRes.json();
+            const nextPedidoId = correlativoData?.[0]?.siguiente_pedido_id;
+
+            if (!nextPedidoId) {
+                throw new Error('No se pudo obtener el ID de pedido.');
+            }
+            
+            const finalTipoComprobante = tipoComprobante;
+
+            // 2. Prepare the payload with the fetched Pedido ID
+            const salesPayload = items.map(item => ({
+                PRODUCTO: item.finalProductName,
+                CANTIDAD: String(item.cantidad),
+                PRECIO: String(item.precio),
+                TOTAL: String(item.total),
+                CLIENTE_NOMBRE: clienteNombre,
+                CLIENTE_CORREO: clienteCorreo || 'admin@gmail.com',
+                NRO_DOCUMENTO: nroDocumento,
+                TIPO_COMPROBANTE: finalTipoComprobante,
+                ESTADO: 'PENDIENTE',
+                CODIGO_SEGUIMIENTO: "51999999999",
+                CLIENTE_ID: clienteTelefono || '',
+                PEDIDO_ID: nextPedidoId, // Use the fetched ID
+            }));
+
+            // 3. Submit the sale
             const response = await fetch(process.env.EXPO_PUBLIC_REGISTER_VENTAM_API!, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -241,14 +246,13 @@ export default function CrearVentaModal() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <Stack.Screen options={{ title: 'Generar Venta Múltiple' }} />
+            <Stack.Screen options={{ title: 'Generar Venta' }} />
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
                 <ScrollView contentContainerStyle={styles.content}>
 
                     {/* --- 1. DATOS DEL CLIENTE --- */}
                     <View style={styles.inputGroup}>
                         <Title style={styles.sectionTitle}>1. Datos del Cliente</Title>
-                        <TextInput mode="outlined" label="ID de Pedido" value={loadingPedidoId ? 'Calculando...' : nextPedidoId} editable={false} />
                         <TextInput mode="outlined" label="Nombre del Cliente" value={clienteNombre} onChangeText={setClienteNombre} />
                         <View style={styles.selectorContainer}>
                             <Text style={styles.selectorLabel}>Tipo de Comprobante</Text>
@@ -270,8 +274,14 @@ export default function CrearVentaModal() {
                             <Title style={styles.sectionTitle}>2. Añadir Productos</Title>
                             <Button icon="plus-box-outline" mode="outlined" onPress={handleAddItemManual}>Manual</Button>
                         </View>
-                        <Searchbar placeholder="O buscar producto existente..." onChangeText={handleSearch} value={searchQuery} />
-                        {loadingProducts && <ActivityIndicator />}
+                        <Searchbar 
+                            ref={searchbarRef}
+                            placeholder="Toca aquí para buscar productos..."
+                            onChangeText={handleSearch} 
+                            onFocus={handleSearchFocus} // Lazy load products on focus
+                            value={searchQuery} 
+                        />
+                        {loadingProducts && <ActivityIndicator style={{ marginTop: 8 }}/>}
                         {filteredProducts.length > 0 && (
                             <ScrollView style={styles.resultsContainer} nestedScrollEnabled>
                                 {filteredProducts.map(p => (

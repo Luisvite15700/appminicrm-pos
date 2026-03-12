@@ -7,18 +7,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 // --- INTERFACES --- //
 interface Cliente {
-  id: string; // Using PEDIDO_ID as the unique key
+  id: string; 
   nombre: string;
   email: string;
   telefono: string;
-  rawData: ApiCliente; // Store the original raw data
+  rawData: ApiCliente;
 }
 
 interface ApiCliente {
-    CLIENTE_NOMBRE: string;
-    CLIENTE_EMAIL: string;
-    CLIENTE_ID: string; // This is the WhatsApp number
-    PEDIDO_ID: string; // This is the unique client identifier
+    NOMBRE: string;
+    CORREO: string;
+    WHATSAPP: number | string;
+    IDENTIFICADOR: number | string;
+    ESTADO: string;
+    PEDIDO_ID: string; 
+    id: number;
 }
 
 const ITEMS_PER_PAGE = 15;
@@ -36,7 +39,7 @@ export default function ClientesScreen() {
   const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // --- DATA FETCHING --- //
+  // --- DATA FETCHING & DEDUPLICATION (MANUAL TRIGGER) --- //
   const fetchClientes = useCallback(async () => {
     setRefreshing(true);
     setError(null);
@@ -45,8 +48,6 @@ export default function ClientesScreen() {
     if (!apiUrl) {
         setError('La URL para cargar clientes no está configurada.');
         setRefreshing(false);
-        setClientes([]);
-        setOriginalClientes([]);
         return;
     }
 
@@ -57,13 +58,25 @@ export default function ClientesScreen() {
       }
       const apiResponse: ApiCliente[] = await response.json();
 
-      const formattedClientes = Array.isArray(apiResponse) ? apiResponse.map(item => ({
-        id: item.PEDIDO_ID, // Use PEDIDO_ID as the unique id
-        nombre: item.CLIENTE_NOMBRE,
-        email: item.CLIENTE_EMAIL || 'N/A',
-        telefono: item.CLIENTE_ID, // WhatsApp number
-        rawData: item, // Keep original data for navigation
-      })) : [];
+      // --- Deduplication Logic --- //
+      const uniqueClientesMap = new Map<string | number, ApiCliente>();
+      if (Array.isArray(apiResponse)) {
+          for (const item of apiResponse) {
+              if(item.WHATSAPP) { 
+                uniqueClientesMap.set(item.WHATSAPP, item);
+              }
+          }
+      }
+      const uniqueApiClients = Array.from(uniqueClientesMap.values());
+      // --- End of Deduplication --- //
+
+      const formattedClientes = uniqueApiClients.map(item => ({
+        id: item.PEDIDO_ID,
+        nombre: item.NOMBRE,
+        email: item.CORREO || 'N/A',
+        telefono: String(item.WHATSAPP),
+        rawData: item, 
+      }));
 
       setOriginalClientes(formattedClientes);
       setClientes(formattedClientes);
@@ -71,19 +84,15 @@ export default function ClientesScreen() {
       setPage(0);
 
     } catch (e: any) {
-      console.error("Error fetching clientes:", e);
+      console.error("Error fetching or processing clientes:", e);
       setError(`No se pudieron cargar los clientes: ${e.message}`);
     } finally {
       setRefreshing(false);
     }
   }, []);
 
-  // Fetch data only once when the component mounts
-  useEffect(() => {
-    fetchClientes();
-  }, [fetchClientes]);
-
-  // Manual refresh function
+  // --- MANUAL REFRESH HANDLER --- //
+  // This is the ONLY way data is fetched, triggered by user pull-to-refresh.
   const onRefresh = useCallback(() => {
     fetchClientes();
   }, [fetchClientes]);
@@ -146,6 +155,12 @@ export default function ClientesScreen() {
         textAlign: 'center',
         marginTop: 20,
         color: theme.colors.onSurfaceVariant
+    },
+    pullToRefreshText: {
+        textAlign: 'center',
+        marginTop: 40,
+        color: theme.colors.onSurfaceVariant,
+        fontSize: 16
     }
   });
 
@@ -170,38 +185,43 @@ export default function ClientesScreen() {
         )}
 
         <ScrollView 
+          contentContainerStyle={{ flexGrow: 1 }} // Ensures the view can grow to show centered text
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          <DataTable>
-            <DataTable.Header style={styles.tableHeader}>
-              <DataTable.Title>Nombre</DataTable.Title>
-              <DataTable.Title>Correo</DataTable.Title>
-              <DataTable.Title numeric>WhatsApp</DataTable.Title>
-            </DataTable.Header>
+          {clientes.length === 0 && !refreshing && !error ? (
+            <Text style={styles.pullToRefreshText}>Desliza hacia abajo para cargar los clientes</Text>
+          ) : (
+            <DataTable>
+              <DataTable.Header style={styles.tableHeader}>
+                <DataTable.Title>Nombre</DataTable.Title>
+                <DataTable.Title>Correo</DataTable.Title>
+                <DataTable.Title numeric>WhatsApp</DataTable.Title>
+              </DataTable.Header>
 
-            {paginatedClientes.length > 0 ? (
-              paginatedClientes.map((cliente, index) => (
-                <TouchableRipple key={`${cliente.id}-${index}`} onPress={() => handleRowPress(cliente)}>
-                    <DataTable.Row>
-                        <DataTable.Cell>{cliente.nombre}</DataTable.Cell>
-                        <DataTable.Cell>{cliente.email}</DataTable.Cell>
-                        <DataTable.Cell numeric>{cliente.telefono}</DataTable.Cell>
-                    </DataTable.Row>
-                </TouchableRipple>
-              ))
-            ) : (
-                !refreshing && !error && <Text style={styles.emptyText}>No se encontraron clientes.</Text>
-            )}
+              {paginatedClientes.length > 0 ? (
+                paginatedClientes.map((cliente) => (
+                  <TouchableRipple key={cliente.rawData.id} onPress={() => handleRowPress(cliente)}>
+                      <DataTable.Row>
+                          <DataTable.Cell>{cliente.nombre}</DataTable.Cell>
+                          <DataTable.Cell>{cliente.email}</DataTable.Cell>
+                          <DataTable.Cell numeric>{cliente.telefono}</DataTable.Cell>
+                      </DataTable.Row>
+                  </TouchableRipple>
+                ))
+              ) : (
+                  !refreshing && <Text style={styles.emptyText}>No se encontraron clientes para tu búsqueda.</Text>
+              )}
 
-            {totalPages > 1 && (
-                <DataTable.Pagination
-                page={page}
-                numberOfPages={totalPages}
-                onPageChange={(p) => setPage(p)}
-                label={`${from + 1}-${Math.min(to, clientes.length)} de ${clientes.length}`}
-                />
-            )}
-          </DataTable>
+              {totalPages > 1 && (
+                  <DataTable.Pagination
+                  page={page}
+                  numberOfPages={totalPages}
+                  onPageChange={(p) => setPage(p)}
+                  label={`${from + 1}-${Math.min(to, clientes.length)} de ${clientes.length}`}
+                  />
+              )}
+            </DataTable>
+          )}
         </ScrollView>
 
         <FAB
