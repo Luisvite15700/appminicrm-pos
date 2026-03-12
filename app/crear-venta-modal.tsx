@@ -31,6 +31,7 @@ export default function CrearVentaModal() {
     // --- STATE --- //
     const [clienteNombre, setClienteNombre] = useState('');
     const [clienteCorreo, setClienteCorreo] = useState('');
+    const [clienteTelefono, setClienteTelefono] = useState(''); // State for the phone number
     const [nroDocumento, setNroDocumento] = useState('');
     const [tipoComprobante, setTipoComprobante] = useState('Boleta de Venta');
     const [nextPedidoId, setNextPedidoId] = useState('');
@@ -187,7 +188,7 @@ export default function CrearVentaModal() {
             TIPO_COMPROBANTE: tipoComprobante,
             ESTADO: 'PENDIENTE',
             CODIGO_SEGUIMIENTO: "51999999999",
-            CLIENTE_ID: "51999999999",
+            CLIENTE_ID: clienteTelefono || '', // Saving the phone number in CLIENTE_ID
             PEDIDO_ID: nextPedidoId,
         }));
 
@@ -255,6 +256,7 @@ export default function CrearVentaModal() {
                         </View>
                         <TextInput mode="outlined" label="Nro. Documento (DNI/RUC)" value={nroDocumento} onChangeText={setNroDocumento} keyboardType="numeric" />
                         <TextInput mode="outlined" label="Correo Cliente (Opcional)" value={clienteCorreo} onChangeText={setClienteCorreo} keyboardType="email-address" />
+                        <TextInput mode="outlined" label="Teléfono Cliente (Opcional)" value={clienteTelefono} onChangeText={setClienteTelefono} keyboardType="phone-pad" />
                     </View>
 
                     <Divider style={{ marginVertical: 8 }} />

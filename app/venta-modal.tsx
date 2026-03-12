@@ -39,7 +39,7 @@ export default function VentaModal() {
   const [estado, setEstado] = useState('');
   
   const [clienteCorreo, setClienteCorreo] = useState('');
-  const [clienteId, setClienteId] = useState('');
+  const [clienteId, setClienteId] = useState(''); // This will store the phone number
   const [codigoSeguimiento, setCodigoSeguimiento] = useState('');
   const [pedidoId, setPedidoId] = useState('');
   const [tipoComprobante, setTipoComprobante] = useState('');
@@ -62,7 +62,7 @@ export default function VentaModal() {
     setClienteNombre(ventaData.CLIENTE_NOMBRE || '');
     setEstado(ventaData.ESTADO || '');
     setClienteCorreo(ventaData.CLIENTE_CORREO || '');
-    setClienteId(ventaData.CLIENTE_ID || '');
+    setClienteId(ventaData.CLIENTE_ID || ''); // The phone number is loaded into this state
     setCodigoSeguimiento(ventaData.CODIGO_SEGUIMIENTO || '');
     setPedidoId(ventaData.PEDIDO_ID || '');
     setTipoComprobante(ventaData.TIPO_COMPROBANTE || '');
@@ -106,6 +106,7 @@ export default function VentaModal() {
     if (!ventaId) return;
     setIsUpdating(true);
     try {
+      // The payload correctly includes CLIENTE_ID (phone) and CLIENTE_CORREO
       const payload = { id: ventaId, PRODUCTO: producto, CANTIDAD: cantidad, PRECIO: precio, TOTAL: total, CLIENTE_NOMBRE: clienteNombre, CLIENTE_CORREO: clienteCorreo, CLIENTE_ID: clienteId, CODIGO_SEGUIMIENTO: codigoSeguimiento, PEDIDO_ID: pedidoId, TIPO_COMPROBANTE: tipoComprobante, NRO_DOCUMENTO: nroDocumento, ESTADO: estado };
       const response = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (response.ok) {
@@ -198,7 +199,8 @@ export default function VentaModal() {
 
   const isEditable = originalVenta?.ESTADO === 'PENDIENTE' || originalVenta?.ESTADO === 'PARA_SUNAT';
   
-  const hasChanges = originalVenta?.PRODUCTO !== producto || String(originalVenta?.CANTIDAD) !== cantidad || String(originalVenta?.PRECIO) !== precio || originalVenta?.CLIENTE_NOMBRE !== clienteNombre || originalVenta?.ESTADO !== estado;
+  // Updated change detection to include email and phone (CLIENTE_ID)
+  const hasChanges = originalVenta?.PRODUCTO !== producto || String(originalVenta?.CANTIDAD) !== cantidad || String(originalVenta?.PRECIO) !== precio || originalVenta?.CLIENTE_NOMBRE !== clienteNombre || originalVenta?.ESTADO !== estado || originalVenta?.CLIENTE_CORREO !== clienteCorreo || originalVenta?.CLIENTE_ID !== clienteId;
 
   let isUpdateDisabled = true;
   if (originalVenta) {
@@ -243,6 +245,8 @@ export default function VentaModal() {
             
             <Paragraph style={styles.sectionTitle}>Datos del Cliente</Paragraph>
             <TextInput label="Cliente" value={clienteNombre} onChangeText={setClienteNombre} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} />
+            <TextInput label="Correo Cliente" value={clienteCorreo} onChangeText={setClienteCorreo} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} keyboardType="email-address"/>
+            <TextInput label="Teléfono Cliente" value={clienteId} onChangeText={setClienteId} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} keyboardType="phone-pad"/>
             <TextInput label="Comprobante" value={`${tipoComprobante || 'N/A'} - ${nroDocumento || 'N/A'}`} style={styles.inputDisabled} disabled/>
 
             <View style={styles.estadoContainer}>
