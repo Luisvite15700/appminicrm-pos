@@ -47,23 +47,20 @@ export default function CrearVentaModal() {
     const [currentCantidad, setCurrentCantidad] = useState('1');
 
     // --- EFFECTS --- //
-    // Effect for calculating the total sale amount whenever items change
     useEffect(() => {
         const total = items.reduce((sum, item) => sum + item.total, 0);
         setSaleTotal(total);
     }, [items]);
 
     // --- HANDLERS --- //
-    // Lazy load products when the search bar is focused
     const handleSearchFocus = async () => {
-        if (productsFetched) return; // Don't fetch if we already have the products
-
+        if (productsFetched) return;
         setLoadingProducts(true);
         try {
             const productsRes = await fetch(process.env.EXPO_PUBLIC_INVENTORY_LIST_API!);
             const productsData: Producto[] = await productsRes.json();
             setAllProducts(productsData);
-            setProductsFetched(true); // Mark as fetched
+            setProductsFetched(true);
         } catch (error) {
             console.error("Error fetching products:", error);
             Alert.alert("Error", "No se pudieron cargar los productos. Intente de nuevo.");
@@ -161,6 +158,7 @@ export default function CrearVentaModal() {
     };
 
     const handleGenerateVenta = async () => {
+        // --- VALIDATION LOGIC --- //
         if (items.length === 0) {
             Alert.alert('Venta Vacía', 'Debe agregar al menos un producto.');
             return;
@@ -170,10 +168,20 @@ export default function CrearVentaModal() {
             return;
         }
 
+        if (tipoComprobante === 'Boleta de Venta' && nroDocumento.length !== 8) {
+            Alert.alert('Validación Fallida', 'Para Boleta de Venta, el DNI debe tener exactamente 8 dígitos.');
+            return; // Stop execution
+        }
+
+        if (tipoComprobante === 'Factura' && nroDocumento.length !== 11) {
+            Alert.alert('Validación Fallida', 'Para Factura, el RUC debe tener exactamente 11 dígitos.');
+            return; // Stop execution
+        }
+        // --- END VALIDATION --- //
+
         setIsSubmitting(true);
 
         try {
-            // 1. Fetch the next Pedido ID on demand
             const correlativoRes = await fetch(process.env.EXPO_PUBLIC_OBTENER_ID_PEDIDO!);
             const correlativoData = await correlativoRes.json();
             const nextPedidoId = correlativoData?.[0]?.siguiente_pedido_id;
@@ -182,9 +190,6 @@ export default function CrearVentaModal() {
                 throw new Error('No se pudo obtener el ID de pedido.');
             }
             
-            const finalTipoComprobante = tipoComprobante;
-
-            // 2. Prepare the payload with the fetched Pedido ID
             const salesPayload = items.map(item => ({
                 PRODUCTO: item.finalProductName,
                 CANTIDAD: String(item.cantidad),
@@ -193,14 +198,13 @@ export default function CrearVentaModal() {
                 CLIENTE_NOMBRE: clienteNombre,
                 CLIENTE_CORREO: clienteCorreo || 'admin@gmail.com',
                 NRO_DOCUMENTO: nroDocumento,
-                TIPO_COMPROBANTE: finalTipoComprobante,
+                TIPO_COMPROBANTE: tipoComprobante,
                 ESTADO: 'PENDIENTE',
                 CODIGO_SEGUIMIENTO: "51999999999",
                 CLIENTE_ID: clienteTelefono || '',
-                PEDIDO_ID: nextPedidoId, // Use the fetched ID
+                PEDIDO_ID: nextPedidoId,
             }));
 
-            // 3. Submit the sale
             const response = await fetch(process.env.EXPO_PUBLIC_REGISTER_VENTAM_API!, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

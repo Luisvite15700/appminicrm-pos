@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { TextInput, Button, Title, useTheme } from 'react-native-paper';
 import { Stack, useRouter } from 'expo-router';
 
@@ -14,28 +14,37 @@ export default function RegistrarProductoModal() {
   const [video, setVideo] = useState('');
   const [slug, setSlug] = useState('');
   const [cantidad, setCantidad] = useState('');
-  const [categoria, setCategoria] = useState(''); // State for Categoria
+  const [categoria, setCategoria] = useState('');
   const router = useRouter();
   const theme = useTheme();
 
   const handleRegister = async () => {
+    // Basic validation
+    if (!nombre || !categoria || !cantidad || !precioRegular) {
+      Alert.alert("Campos Requeridos", "Por favor, completa Nombre, Categoría, Cantidad y Precio Regular.");
+      return;
+    }
+
     const productData = {
       nombre,
       foto,
       galeria,
       especificaciones,
-      precio_regular: precioRegular,
-      precio_descuento: precioDescuento,
+      // --- FIX: Convert prices to numbers before sending ---
+      precio_regular: parseFloat(precioRegular),
+      precio_descuento: precioDescuento ? parseFloat(precioDescuento) : null,
       video,
       slug,
       cantidad: parseInt(cantidad, 10) || 0,
-      categoria, // Include Categoria in the payload
+      categoria,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
+    const endpoint = process.env.EXPO_PUBLIC_REGISTER_PRODUCT_API!;
+
     try {
-      const response = await fetch(process.env.EXPO_PUBLIC_REGISTER_PRODUCT_API!, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,34 +53,29 @@ export default function RegistrarProductoModal() {
       });
 
       if (response.ok) {
-        console.log('Product registered successfully!');
+        // --- FIX: Added success alert ---
+        Alert.alert("Éxito", "¡Producto registrado correctamente!");
         router.back();
       } else {
         const errorText = await response.text();
+        // --- FIX: Added error alert ---
+        Alert.alert("Error de Registro", `No se pudo registrar el producto: ${errorText}`);
         console.error('Error registering product:', response.status, errorText);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // --- FIX: Added connection error alert ---
+      Alert.alert("Error de Conexión", `No se pudo conectar con el servidor: ${error.message}`);
       console.error("Error registering product:", error);
     }
   };
 
   const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-    },
-    scrollContent: {
-        padding: 16,
-    },
-    input: {
-      marginBottom: 16,
-    },
-    button: {
-      marginTop: 16,
-    },
-    title: {
-        marginBottom: 16,
-        paddingTop: 16,
-    }
+    container: { flex: 1 },
+    scrollContent: { padding: 16 },
+    input: { marginBottom: 16 },
+    button: { marginTop: 16, paddingVertical: 8 },
+    // --- FIX: Reduced paddingTop and centered title ---
+    title: { marginBottom: 16, paddingTop: 4, textAlign: 'center' }
   });
 
   return (
@@ -94,10 +98,15 @@ export default function RegistrarProductoModal() {
             <TextInput label="Cantidad" value={cantidad} onChangeText={setCantidad} style={styles.input} keyboardType="numeric" />
             <TextInput label="Precio Regular" value={precioRegular} onChangeText={setPrecioRegular} style={styles.input} keyboardType="numeric" />
             <TextInput label="Precio Descuento" value={precioDescuento} onChangeText={setPrecioDescuento} style={styles.input} keyboardType="numeric" />
-            <TextInput label="Foto (URL)" value={foto} onChangeText={setFoto} style={styles.input} />
-            <TextInput label="Galería (URLs separadas por comas)" value={galeria} onChangeText={setGaleria} style={styles.input} />
+            
+            {/* --- FIX: Multiline inputs for long text/URLs --- */}
+            <TextInput label="Foto (URL)" value={foto} onChangeText={setFoto} style={styles.input} multiline numberOfLines={2} />
+            <TextInput label="Galería (URLs separadas por comas)" value={galeria} onChangeText={setGaleria} style={styles.input} multiline numberOfLines={3} />
+            
+            {/* --- FIX: Multiline for specifications, respects line breaks --- */}
             <TextInput label="Especificaciones" value={especificaciones} onChangeText={setEspecificaciones} style={styles.input} multiline />
-            <TextInput label="Video (URL)" value={video} onChangeText={setVideo} style={styles.input} />
+            <TextInput label="Video (URL)" value={video} onChangeText={setVideo} style={styles.input} multiline numberOfLines={2} />
+            
             <TextInput label="Slug" value={slug} onChangeText={setSlug} style={styles.input} />
             <Button mode="contained" onPress={handleRegister} style={styles.button}>
               Registrar Producto
