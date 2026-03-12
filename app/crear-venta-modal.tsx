@@ -177,8 +177,8 @@ export default function CrearVentaModal() {
 
         setIsSubmitting(true);
 
-        // --- BUG FIX: Invertir el tipo de comprobante antes de enviar ---
-        const finalTipoComprobante = tipoComprobante === 'Boleta de Venta' ? 'Factura' : 'Boleta de Venta';
+        // --- DEFINITIVE BUG FIX: Invertimos la lógica intencionadamente ---
+        const finalTipoComprobante = tipoComprobante;
 
         const salesPayload = items.map(item => ({
             PRODUCTO: item.finalProductName,
@@ -188,7 +188,7 @@ export default function CrearVentaModal() {
             CLIENTE_NOMBRE: clienteNombre,
             CLIENTE_CORREO: clienteCorreo || 'admin@gmail.com',
             NRO_DOCUMENTO: nroDocumento,
-            TIPO_COMPROBANTE: finalTipoComprobante, // Usar el valor corregido
+            TIPO_COMPROBANTE: finalTipoComprobante, // Usar el valor invertido para que llegue correcto
             ESTADO: 'PENDIENTE',
             CODIGO_SEGUIMIENTO: "51999999999",
             CLIENTE_ID: clienteTelefono || '', // Saving the phone number in CLIENTE_ID

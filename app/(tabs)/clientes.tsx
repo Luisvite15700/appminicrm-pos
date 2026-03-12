@@ -1,8 +1,8 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, RefreshControl } from 'react-native';
 import { DataTable, Searchbar, useTheme, Title, FAB, Text, HelperText, TouchableRipple } from 'react-native-paper';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // --- INTERFACES --- //
@@ -40,7 +40,6 @@ export default function ClientesScreen() {
   const fetchClientes = useCallback(async () => {
     setRefreshing(true);
     setError(null);
-    // Use the correct environment variable for listing clients
     const apiUrl = process.env.EXPO_PUBLIC_CLIENT_LIST_API;
 
     if (!apiUrl) {
@@ -79,12 +78,12 @@ export default function ClientesScreen() {
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchClientes();
-    }, [fetchClientes])
-  );
+  // Fetch data only once when the component mounts
+  useEffect(() => {
+    fetchClientes();
+  }, [fetchClientes]);
 
+  // Manual refresh function
   const onRefresh = useCallback(() => {
     fetchClientes();
   }, [fetchClientes]);
@@ -118,7 +117,6 @@ export default function ClientesScreen() {
   };
 
   const handleRowPress = (cliente: Cliente) => {
-    // Navigate to the detail screen, passing the client data
     router.push({
         pathname: '/cliente-detalle-modal',
         params: { cliente: JSON.stringify(cliente.rawData) },
@@ -182,8 +180,8 @@ export default function ClientesScreen() {
             </DataTable.Header>
 
             {paginatedClientes.length > 0 ? (
-              paginatedClientes.map((cliente) => (
-                <TouchableRipple key={cliente.id} onPress={() => handleRowPress(cliente)}>
+              paginatedClientes.map((cliente, index) => (
+                <TouchableRipple key={`${cliente.id}-${index}`} onPress={() => handleRowPress(cliente)}>
                     <DataTable.Row>
                         <DataTable.Cell>{cliente.nombre}</DataTable.Cell>
                         <DataTable.Cell>{cliente.email}</DataTable.Cell>
