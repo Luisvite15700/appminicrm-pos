@@ -136,6 +136,7 @@ export default function VentaModal() {
                 sunatDocType = '6'; // RUC
                 break;
             case 'Boleta':
+            case 'Boleta de Venta': // Handle both short and long names
                 sunatDocType = '1'; // DNI
                 break;
             default:
@@ -158,7 +159,7 @@ export default function VentaModal() {
                     price: Number(originalVenta.PRECIO),
                 },
             ],
-            PEDIDO_ID: originalVenta.PEDIDO_ID, // CORRECTED from internal_id
+            PEDIDO_ID: originalVenta.PEDIDO_ID,
         };
 
         const response = await fetch(process.env.EXPO_PUBLIC_CREAR_COMPROBANTE!, {

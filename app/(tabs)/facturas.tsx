@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, RefreshControl, Text } from 'react-native';
 import { DataTable, Searchbar, useTheme, Title, Button, Portal, Dialog, Chip, IconButton } from 'react-native-paper';
 import { useFocusEffect } from 'expo-router';
@@ -49,9 +49,9 @@ export default function FacturasScreen() {
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
   const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
   const [pdfUrlToView, setPdfUrlToView] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
 
   // --- DATA FETCHING & PROCESSING --- //
-  // This function now only fetches and stores the data.
   const fetchFacturas = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -63,7 +63,7 @@ export default function FacturasScreen() {
         .filter(item => item && item.id)
         .map(item => ({
           id: item.id,
-          nombre: item.fileName,
+          nombre: item.fileName, // The full fileName is stored here
           tipo: item.type,
           estado: item.status || 'N/A',
           issueDate: item.issueDate || 'N/A',
@@ -74,7 +74,7 @@ export default function FacturasScreen() {
 
       setOriginalFacturas(formattedFacturas);
       setFacturas(formattedFacturas);
-      setSearchQuery(''); // Clear search on refresh
+      setSearchQuery('');
       setPage(0);
 
     } catch (error) {
@@ -82,9 +82,8 @@ export default function FacturasScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, []); // No dependencies, it's a stable function
+  }, []);
 
-  // Fetch data when the screen is focused for the first time.
   useFocusEffect(
     useCallback(() => {
       if (originalFacturas.length === 0) {
@@ -93,7 +92,6 @@ export default function FacturasScreen() {
     }, [originalFacturas.length, fetchFacturas])
   );
 
-  // --- REFRESH --- //
   const onRefresh = useCallback(() => {
     fetchFacturas();
   }, [fetchFacturas]);
@@ -113,6 +111,7 @@ export default function FacturasScreen() {
     }
   };
 
+  // This function remains to format the name ONLY for display in the table
   const formatNombre = (fullName: string) => {
     const parts = fullName.split('-');
     if (parts.length >= 4) {
@@ -124,9 +123,14 @@ export default function FacturasScreen() {
   // --- DIALOG & MODAL HANDLERS --- //
   const showFormatDialog = (factura: Factura) => {
     setSelectedFactura(factura);
+    setPdfFileName(factura.nombre); // Pass the FULL, unmodified name to the state
     setFormatDialogVisible(true);
   };
-  const hideFormatDialog = () => setFormatDialogVisible(false);
+
+  const hideFormatDialog = () => {
+    setFormatDialogVisible(false);
+  };
+
   const handleFormatSelect = (url: string | undefined) => {
     hideFormatDialog();
     if (url) {
@@ -134,16 +138,17 @@ export default function FacturasScreen() {
       setPdfViewerVisible(true);
     }
   };
+
   const hidePdfViewer = () => {
     setPdfViewerVisible(false);
     setPdfUrlToView(null);
+    setPdfFileName(null); // Clear the full name on dismiss
   };
 
   // --- SEARCH LOGIC --- //
-  // This now runs only on the client side, which is much faster.
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    setPage(0); 
+    setPage(0);
 
     if (query === '') {
       setFacturas(originalFacturas);
@@ -160,7 +165,7 @@ export default function FacturasScreen() {
     }
   };
 
-  // --- STYLES --- //
+  // --- STYLES (Unchanged from original) --- //
   const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: theme.colors.background },
     container: { flex: 1 },
@@ -216,7 +221,8 @@ export default function FacturasScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <Portal>
-        <PdfViewerModal visible={pdfViewerVisible} onDismiss={hidePdfViewer} pdfUrl={pdfUrlToView} />
+        {/* The full, unmodified fileName is passed here for sharing purposes */}
+        <PdfViewerModal visible={pdfViewerVisible} onDismiss={hidePdfViewer} pdfUrl={pdfUrlToView} fileName={pdfFileName || undefined} />
         <Dialog visible={formatDialogVisible} onDismiss={hideFormatDialog}>
           <Dialog.Title>Elegir Formato de PDF</Dialog.Title>
           <Dialog.Content>
@@ -264,6 +270,7 @@ export default function FacturasScreen() {
 
                     {paginatedFacturas.map((item) => (
                         <DataTable.Row key={item.id}>
+                            {/* The name is formatted for display only */}
                             <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
                             <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
                             <DataTable.Cell style={styles.colEstado}>

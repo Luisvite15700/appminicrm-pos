@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Modal, Card, Title, Button, useTheme } from 'react-native-paper';
 import { WebView } from 'react-native-webview';
-// FINAL, FINAL FIX: Consolidate all filesystem imports into the legacy module.
 import {
   readAsStringAsync,
   EncodingType,
   downloadAsync as legacyDownloadAsync,
-  cacheDirectory as legacyCacheDirectory
+  cacheDirectory as legacyCacheDirectory,
+  deleteAsync,
+  getInfoAsync,
 } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
@@ -16,9 +17,10 @@ interface Props {
   visible: boolean;
   onDismiss: () => void;
   pdfUrl: string | null;
+  fileName?: string; // This will be the full, complete fileName
 }
 
-export default function PdfViewerModal({ visible, onDismiss, pdfUrl }: Props) {
+export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }: Props) {
   const theme = useTheme();
   const [isSharing, setIsSharing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,14 +36,22 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl }: Props) {
       setWebViewSource(null);
 
       try {
-        const fileName = `vista-previa-${Date.now()}.pdf`;
-        const localUri = legacyCacheDirectory + fileName;
+        // Use the full fileName for the downloaded file, or a default if not provided
+        const finalFileName = fileName ? `${fileName}.pdf` : `vista-previa-${Date.now()}.pdf`;
+        const localUri = legacyCacheDirectory + finalFileName;
+
+        // Clean up any previous version of the file to avoid conflicts
+        const fileInfo = await getInfoAsync(localUri);
+        if (fileInfo.exists) {
+          await deleteAsync(localUri);
+        }
+
         const { uri: downloadedUri } = await legacyDownloadAsync(pdfUrl, localUri);
 
         setLocalFileUri(downloadedUri);
 
+        // Prepare the file for viewing in the WebView
         if (Platform.OS === 'android') {
-          // Now `readAsStringAsync` and `EncodingType` come from the same legacy module.
           const base64 = await readAsStringAsync(downloadedUri, {
             encoding: EncodingType.Base64,
           });
@@ -62,11 +72,12 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl }: Props) {
     if (visible) {
       loadPdfForViewing();
     } else {
+      // Cleanup on close
       setIsLoading(false);
       setLocalFileUri(null);
       setWebViewSource(null);
     }
-  }, [pdfUrl, visible]);
+  }, [pdfUrl, visible, fileName]);
 
   const handleShare = async () => {
     if (isSharing) return;
@@ -81,11 +92,17 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl }: Props) {
         Alert.alert("Error", "La función de compartir no está disponible en este dispositivo.");
         return;
       }
-      await Sharing.shareAsync(localFileUri);
-    } catch (error) {
+      // When sharing, the file will have the correct full name.
+      await Sharing.shareAsync(localFileUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: fileName ? `Compartir ${fileName}.pdf` : 'Compartir PDF',
+          UTI: 'com.adobe.pdf'
+      });
+    } catch (error: any) {
       console.error('Error sharing PDF:', error);
-      if (!error.message.includes("Another share request")) {
-        Alert.alert("Error", "Hubo un error al intentar compartir el archivo.");
+      // Ignore errors from the user cancelling the share sheet
+      if (error.message && !error.message.includes("cancelled")) {
+          Alert.alert("Error", "Hubo un problema al intentar compartir el archivo.");
       }
     } finally {
       setIsSharing(false);
@@ -106,6 +123,7 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl }: Props) {
     <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modal}>
       <Card style={styles.card}>
         <View style={styles.header}>
+          {/* The title of the modal can be simple, as requested */}
           <Title style={styles.title} numberOfLines={1}>Vista Previa</Title>
           <Button icon="share-variant" onPress={handleShare} disabled={isSharing || isLoading}>
             Compartir

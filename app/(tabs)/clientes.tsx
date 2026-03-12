@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, FlatList, View, RefreshControl } from 'react-native';
 import { Card, Title, Paragraph, Searchbar, Button, useTheme } from 'react-native-paper';
 import { ThemedText } from '@/components/themed-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 interface Client {
   id: number;
@@ -25,33 +25,45 @@ export default function TabClientesScreen() {
   const theme = useTheme();
   const router = useRouter();
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
+    setRefreshing(true);
     try {
       const response = await fetch(process.env.EXPO_PUBLIC_CLIENT_LIST_API!);
       const data: Client[] = await response.json();
-      setClients(data);
       setOriginalClients(data);
+      setClients(data);
+      setSearchQuery(''); // Reset search on refresh
     } catch (error) {
       console.error("Error fetching clients:", error);
+    } finally {
+      setRefreshing(false);
     }
-  };
+  }, []);
 
-  useEffect(() => {
+  // OPTIMIZATION: Fetch data only when the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      // Only fetch if we don't have clients yet.
+      if (originalClients.length === 0) {
+        fetchClients();
+      }
+    }, [originalClients.length, fetchClients])
+  );
+
+  const onRefresh = useCallback(() => {
     fetchClients();
-  }, []);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchClients();
-    setRefreshing(false);
-  }, []);
+  }, [fetchClients]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    const filtered = originalClients.filter(client =>
-      client.NOMBRE.toLowerCase().includes(query.toLowerCase())
-    );
-    setClients(filtered);
+    if (query === '') {
+      setClients(originalClients);
+    } else {
+      const filtered = originalClients.filter(client =>
+        client.NOMBRE.toLowerCase().includes(query.toLowerCase())
+      );
+      setClients(filtered);
+    }
   };
 
   const handleSort = (order: 'asc' | 'desc') => {
@@ -62,35 +74,13 @@ export default function TabClientesScreen() {
   };
 
   const styles = StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    listContent: {
-      paddingHorizontal: 16,
-      paddingTop: 40,
-      paddingBottom: 16,
-    },
-    card: {
-      marginBottom: 16,
-      backgroundColor: theme.colors.surface,
-    },
-    searchbar: {
-      marginBottom: 16,
-      backgroundColor: theme.colors.surface,
-    },
-    filterContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginBottom: 16,
-    },
-    filterButton: {
-      flex: 1,
-      marginHorizontal: 4,
-    },
-    title: {
-        marginBottom: 16,
-    }
+    safeArea: { flex: 1, backgroundColor: theme.colors.background },
+    listContent: { paddingHorizontal: 16, paddingTop: 40, paddingBottom: 16 },
+    card: { marginBottom: 16, backgroundColor: theme.colors.surface },
+    searchbar: { marginBottom: 16, backgroundColor: theme.colors.surface },
+    filterContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
+    filterButton: { flex: 1, marginHorizontal: 4 },
+    title: { marginBottom: 16 },
   });
 
   const renderClient = ({ item }: { item: Client }) => (
@@ -110,29 +100,19 @@ export default function TabClientesScreen() {
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderClient}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
             <View>
-                <ThemedText
-                type="title"
-                style={styles.title}>
-                Clientes
-                </ThemedText>
+                <ThemedText type="title" style={styles.title}>Clientes</ThemedText>
                 <Searchbar
-                placeholder="Buscar cliente"
-                onChangeText={handleSearch}
-                value={searchQuery}
-                style={styles.searchbar}
+                  placeholder="Buscar cliente"
+                  onChangeText={handleSearch}
+                  value={searchQuery}
+                  style={styles.searchbar}
                 />
                 <View style={styles.filterContainer}>
-                <Button mode="contained" onPress={() => handleSort('asc')} style={styles.filterButton}>
-                    A-Z
-                </Button>
-                <Button mode="contained" onPress={() => handleSort('desc')} style={styles.filterButton}>
-                    Z-A
-                </Button>
+                  <Button mode="contained" onPress={() => handleSort('asc')} style={styles.filterButton}>A-Z</Button>
+                  <Button mode="contained" onPress={() => handleSort('desc')} style={styles.filterButton}>Z-A</Button>
                 </View>
             </View>
           }

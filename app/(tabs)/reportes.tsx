@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Dimensions, ScrollView, View, RefreshControl } from 'react-native';
-import { Card, Title, Paragraph, useTheme, Button, SegmentedButtons } from 'react-native-paper';
+import { Card, Title, Paragraph, useTheme, SegmentedButtons } from 'react-native-paper';
+import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // --- INTERFACES --- //
-// ASSUMPTION: The Venta object contains a Detalles array with the products sold.
 interface DetalleVenta {
   nombre: string;
   cantidad: number;
@@ -33,7 +33,7 @@ export default function TabReportesScreen() {
   // --- STATE --- //
   const [originalSales, setOriginalSales] = useState<Venta[]>([]);
   const [totalClients, setTotalClients] = useState(0);
-  const [totalProducts, setTotalProducts] = useState(0); // This will remain as total stock for now
+  const [totalProducts, setTotalProducts] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const theme = useTheme();
 
@@ -72,7 +72,6 @@ export default function TabReportesScreen() {
 
       if (Array.isArray(sales)) setOriginalSales(sales);
       if (Array.isArray(clients)) setTotalClients(clients.length);
-      // The 'Total Stock' KPI still uses the products endpoint
       if (Array.isArray(products)) {
         const totalStock = products.reduce((acc, p) => acc + (p.cantidad || 0), 0);
         setTotalProducts(totalStock);
@@ -85,12 +84,17 @@ export default function TabReportesScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+  // OPTIMIZATION: Fetch data only when the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      // Only fetch if data is not already loaded
+      if (originalSales.length === 0) {
+        fetchAllData();
+      }
+    }, [originalSales.length, fetchAllData])
+  );
 
-
-  // --- DATA PROCESSING --- //
+  // --- DATA PROCESSING (runs when filter or data changes) --- //
   useEffect(() => {
     if (originalSales.length === 0) return;
 
@@ -98,32 +102,20 @@ export default function TabReportesScreen() {
     const startDate = new Date();
 
     switch (timeFilter) {
-      case 'day':
-        startDate.setDate(now.getDate() - 1);
-        break;
-      case 'week':
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case 'fortnight':
-        startDate.setDate(now.getDate() - 15);
-        break;
-      case 'month':
-      default:
-        startDate.setMonth(now.getMonth() - 1);
-        break;
+      case 'day': startDate.setDate(now.getDate() - 1); break;
+      case 'week': startDate.setDate(now.getDate() - 7); break;
+      case 'fortnight': startDate.setDate(now.getDate() - 15); break;
+      case 'month': default: startDate.setMonth(now.getMonth() - 1); break;
     }
 
     const filteredSales = originalSales.filter(sale => new Date(sale.createdAt) >= startDate);
 
-    // --- Process KPIs ---
     const revenue = filteredSales.reduce((acc, sale) => acc + parseFloat(sale.TOTAL), 0);
     setTotalRevenue(revenue);
     setTotalSales(filteredSales.length);
 
-    // --- Process Sales Evolution ---
     const salesByTime = filteredSales.reduce((acc, sale) => {
       const date = new Date(sale.createdAt);
-      // Format label based on filter for clarity
       const key = timeFilter === 'day' ? date.toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString('default', { day: '2-digit', month: 'short' });
       acc[key] = (acc[key] || 0) + parseFloat(sale.TOTAL);
       return acc;
@@ -134,34 +126,26 @@ export default function TabReportesScreen() {
       datasets: [{ data: Object.values(salesByTime) }],
     });
 
-    // --- Process Top Selling Products ---
     const productCounts = filteredSales.reduce((acc, sale) => {
-      // Ensure Detalles is an array before trying to reduce it
       if (Array.isArray(sale.Detalles)) {
         sale.Detalles.forEach(detalle => {
-          const name = (detalle.nombre || 'N/A').substring(0, 15); // Truncate name
+          const name = (detalle.nombre || 'N/A').substring(0, 15);
           acc[name] = (acc[name] || 0) + detalle.cantidad;
         });
       }
       return acc;
     }, {} as { [key: string]: number });
 
-    const sortedProducts = Object.entries(productCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 7); // Show top 7 products
+    const sortedProducts = Object.entries(productCounts).sort(([, a], [, b]) => b - a).slice(0, 7);
 
     if (sortedProducts.length > 0) {
-        setTopProductsData({
-            labels: sortedProducts.map(([name]) => name),
-            datasets: [{ data: sortedProducts.map(([, count]) => count) }],
-        });
+        setTopProductsData({ labels: sortedProducts.map(([name]) => name), datasets: [{ data: sortedProducts.map(([, count]) => count) }] });
     } else {
         setTopProductsData(emptyChartData);
     }
 
   }, [timeFilter, originalSales]);
 
-  // --- STYLES --- //
   const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: theme.colors.background },
     container: { paddingHorizontal: 16, paddingBottom: 16 },
@@ -174,7 +158,6 @@ export default function TabReportesScreen() {
     filterContainer: { marginVertical: 8, alignItems: 'center' },
   });
 
-  // --- RENDER --- //
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -185,7 +168,6 @@ export default function TabReportesScreen() {
           <ThemedText type="title" style={styles.title}>Reportes</ThemedText>
         </View>
 
-        {/* KPIs Section */}
         <View style={styles.kpiContainer}>
           <Card style={styles.kpiCard}><Card.Content><Title>Ingresos</Title><Paragraph>S/{totalRevenue.toFixed(2)}</Paragraph></Card.Content></Card>
           <Card style={styles.kpiCard}><Card.Content><Title>Ventas</Title><Paragraph>{totalSales}</Paragraph></Card.Content></Card>
@@ -193,7 +175,6 @@ export default function TabReportesScreen() {
           <Card style={styles.kpiCard}><Card.Content><Title>Stock Total</Title><Paragraph>{totalProducts}</Paragraph></Card.Content></Card>
         </View>
 
-        {/* Sales Evolution Chart */}
         <Card style={styles.chartCard}>
           <Card.Content>
             <Title>Evolución de Ventas</Title>
@@ -203,7 +184,6 @@ export default function TabReportesScreen() {
           </Card.Content>
         </Card>
         
-        {/* Top Selling Products Chart */}
         <Card style={styles.chartCard}>
             <Card.Content>
                 <Title>Productos Más Vendidos</Title>
@@ -225,24 +205,7 @@ export default function TabReportesScreen() {
             </Card.Content>
         </Card>
 
-        {/*
-        // --- Stock de Productos (Oculto) ---
-        <Card style={styles.chartCard}>
-          <Card.Content>
-            <Title>Stock de Productos</Title>
-            {inventoryData.labels.length > 0 ? (
-              <BarChart
-                data={inventoryData}
-                width={screenWidth - 64}
-                height={250}
-                chartConfig={chartConfig}
-                verticalLabelRotation={30}
-                style={styles.chart}
-              />
-            ) : <Paragraph>No hay datos de inventario.</Paragraph>}
-          </Card.Content>
-        </Card>
-        */}
+        {/* Stock de Productos (Oculto) */}
       </ScrollView>
     </SafeAreaView>
   );
