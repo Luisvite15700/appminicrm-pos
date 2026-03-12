@@ -245,7 +245,6 @@ export default function VentaModal() {
             
             <Paragraph style={styles.sectionTitle}>Datos del Cliente</Paragraph>
             <TextInput label="Cliente" value={clienteNombre} onChangeText={setClienteNombre} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} />
-            <TextInput label="Correo Cliente" value={clienteCorreo} onChangeText={setClienteCorreo} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} keyboardType="email-address"/>
             <TextInput label="Teléfono Cliente" value={clienteId} onChangeText={setClienteId} style={isEditable ? styles.input : styles.inputDisabled} disabled={!isEditable} keyboardType="phone-pad"/>
             <TextInput label="Comprobante" value={`${tipoComprobante || 'N/A'} - ${nroDocumento || 'N/A'}`} style={styles.inputDisabled} disabled/>
 
