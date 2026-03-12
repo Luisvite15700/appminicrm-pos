@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+// --- FIX: Import TextInput from react-native with an alias ---
+import { View, StyleSheet, Image, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, TextInput as RNTextInput } from 'react-native';
 import { useTheme, Searchbar, Title, Text, ActivityIndicator, TextInput, Button, IconButton, Divider } from 'react-native-paper';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,7 +28,8 @@ interface VentaItem {
 export default function CrearVentaModal() {
     const theme = useTheme();
     const router = useRouter();
-    const searchbarRef = useRef<TextInput>(null);
+    // --- FIX: Use the aliased type for the ref ---
+    const searchbarRef = useRef<RNTextInput>(null);
 
     // --- STATE --- //
     const [clienteNombre, setClienteNombre] = useState('');
