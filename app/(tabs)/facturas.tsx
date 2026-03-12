@@ -209,7 +209,7 @@ export default function FacturasScreen() {
       <Portal>
         <PdfViewerModal visible={pdfViewerVisible} onDismiss={hidePdfViewer} pdfUrl={pdfUrlToView} fileName={pdfFileName || undefined} />
         <Dialog visible={formatDialogVisible} onDismiss={hideFormatDialog}>
-          <Dialog.title>Elegir Formato de PDF</Dialog.title>
+          <Dialog.Title>Elegir Formato de PDF</Dialog.Title>
           <Dialog.Content>
             <Button icon="file-pdf-box" mode="contained" onPress={() => handleFormatSelect(selectedFactura?.urlA4)} style={styles.dialogButton}>Ver Formato A4</Button>
             <Button icon="ticket-confirmation" mode="contained" onPress={() => handleFormatSelect(selectedFactura?.urlTicket)} style={styles.dialogButton}>Ver Ticket 80mm</Button>
@@ -248,10 +248,10 @@ export default function FacturasScreen() {
                   <DataTable.Header style={styles.tableHeader}>
                       <DataTable.Title style={styles.colNombre}>Serie-Correlativo</DataTable.Title>
                       <DataTable.Title style={styles.colTipo}>Tipo</DataTable.Title>
-                      <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
+                      <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
                       <DataTable.Title style={styles.colFechaEmision}>Fecha Emisión</DataTable.Title>
                       <DataTable.Title style={styles.colFechaRespuesta}>Fecha Resp. SUNAT</DataTable.Title>
-                      <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
+                      <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
                   </DataTable.Header>
 
                   {paginatedFacturas.length > 0 ? (
@@ -259,10 +259,10 @@ export default function FacturasScreen() {
                         <DataTable.Row key={item.id}>
                             <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
                             <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
-                            <DataTable.Cell style={styles.colEstado}><StatusChip status={item.estado} /></DataTable.Cell>
+                            <DataTable.Cell style={styles.colAccion}><Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button></DataTable.Cell>
                             <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
                             <DataTable.Cell style={styles.colFechaRespuesta}>{item.responseDate}</DataTable.Cell>
-                            <DataTable.Cell style={styles.colAccion}><Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button></DataTable.Cell>
+                            <DataTable.Cell style={styles.colEstado}><StatusChip status={item.estado} /></DataTable.Cell>
                         </DataTable.Row>
                     ))
                   ) : (

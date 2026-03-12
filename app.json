@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "appminicrm",
+    "name": "Freshadas MiniApp",
     "slug": "appminicrm",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -50,7 +50,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "2442755b-7eff-41bd-b772-2b5e62252cf5"
+        "projectId": "8633d3e8-265c-4530-b5f8-5fbdfa68c51d"
       }
     }
   }
