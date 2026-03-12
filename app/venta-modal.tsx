@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { TextInput, Button, Title, useTheme, Paragraph } from 'react-native-paper';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -30,16 +30,15 @@ export default function VentaModal() {
   const { venta: ventaString } = params;
   const theme = useTheme();
   
-  const [ventaId, setVentaId] = useState<number | null>(null);
+  // State for form fields
   const [producto, setProducto] = useState('');
   const [cantidad, setCantidad] = useState('');
   const [precio, setPrecio] = useState('');
   const [total, setTotal] = useState('');
   const [clienteNombre, setClienteNombre] = useState('');
   const [estado, setEstado] = useState('');
-  
   const [clienteCorreo, setClienteCorreo] = useState('');
-  const [clienteId, setClienteId] = useState(''); // This will store the phone number
+  const [clienteId, setClienteId] = useState('');
   const [codigoSeguimiento, setCodigoSeguimiento] = useState('');
   const [pedidoId, setPedidoId] = useState('');
   const [tipoComprobante, setTipoComprobante] = useState('');
@@ -47,71 +46,68 @@ export default function VentaModal() {
   const [createdAt, setCreatedAt] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
 
+  // State for logic
   const [originalVenta, setOriginalVenta] = useState<Venta | null>(null);
-  
-  const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const setVentaData = useCallback((ventaData: Venta) => {
-    setVentaId(ventaData.id);
-    setProducto(ventaData.PRODUCTO || '');
-    setCantidad(String(ventaData.CANTIDAD ?? ''));
-    setPrecio(String(ventaData.PRECIO ?? ''));
-    setTotal(String(ventaData.TOTAL ?? ''));
-    setClienteNombre(ventaData.CLIENTE_NOMBRE || '');
-    setEstado(ventaData.ESTADO || '');
-    setClienteCorreo(ventaData.CLIENTE_CORREO || '');
-    setClienteId(ventaData.CLIENTE_ID || ''); // The phone number is loaded into this state
-    setCodigoSeguimiento(ventaData.CODIGO_SEGUIMIENTO || '');
-    setPedidoId(ventaData.PEDIDO_ID || '');
-    setTipoComprobante(ventaData.TIPO_COMPROBANTE || '');
-    setNroDocumento(ventaData.NRO_DOCUMENTO || '');
-    setCreatedAt(ventaData.createdAt ? new Date(ventaData.createdAt).toLocaleString() : '');
-    setUpdatedAt(ventaData.updatedAt ? new Date(ventaData.updatedAt).toLocaleString() : '');
-    setOriginalVenta(ventaData);
-  }, []);
-
-  const fetchVentaById = useCallback(async (id: number) => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_ID_VENTA_WEBHOOK!}?id=${id}`);
-      const data = await response.json();
-      if (data && data.length > 0) {
-        setVentaData(data[0]);
-      }
-    } catch (error) {
-      Alert.alert("Error de Carga", "No se pudieron recargar los detalles de la venta.");
-    } finally {
-      setLoading(false);
-    }
-  }, [setVentaData]);
-  
+  // --- DATA INITIALIZATION (NO FETCH) ---
+  // Populates the state directly from the passed params. No network request.
   useEffect(() => {
     if (ventaString && typeof ventaString === 'string') {
-      const parsedVenta = JSON.parse(ventaString);
-      fetchVentaById(parsedVenta.id);
-    } else {
-      setLoading(false);
-    }
-  }, [ventaString, fetchVentaById]);
+      try {
+        const parsedVenta: Venta = JSON.parse(ventaString);
+        
+        setOriginalVenta(parsedVenta);
+        setProducto(parsedVenta.PRODUCTO || '');
+        setCantidad(String(parsedVenta.CANTIDAD ?? ''));
+        setPrecio(String(parsedVenta.PRECIO ?? ''));
+        setTotal(String(parsedVenta.TOTAL ?? ''));
+        setClienteNombre(parsedVenta.CLIENTE_NOMBRE || '');
+        setEstado(parsedVenta.ESTADO || '');
+        setClienteCorreo(parsedVenta.CLIENTE_CORREO || '');
+        setClienteId(parsedVenta.CLIENTE_ID || '');
+        setCodigoSeguimiento(parsedVenta.CODIGO_SEGUIMIENTO || '');
+        setPedidoId(parsedVenta.PEDIDO_ID || '');
+        setTipoComprobante(parsedVenta.TIPO_COMPROBANTE || '');
+        setNroDocumento(parsedVenta.NRO_DOCUMENTO || '');
+        setCreatedAt(parsedVenta.createdAt ? new Date(parsedVenta.createdAt).toLocaleString() : '');
+        setUpdatedAt(parsedVenta.updatedAt ? new Date(parsedVenta.updatedAt).toLocaleString() : '');
 
+      } catch (e) {
+        Alert.alert("Error de Datos", "No se pudo cargar la información de la venta.");
+        console.error("Failed to parse ventaString:", e);
+        router.back();
+      }
+    }
+  }, [ventaString]);
+
+  // Recalculates total whenever quantity or price changes.
   useEffect(() => {
     const numCantidad = parseFloat(cantidad) || 0;
     const numPrecio = parseFloat(precio) || 0;
     setTotal((numCantidad * numPrecio).toFixed(2));
   }, [cantidad, precio]);
 
+  // --- API ACTIONS ---
   const handleUpdate = async () => {
-    if (!ventaId) return;
+    if (!originalVenta?.id) return;
     setIsUpdating(true);
     try {
-      // The payload correctly includes CLIENTE_ID (phone) and CLIENTE_CORREO
-      const payload = { id: ventaId, PRODUCTO: producto, CANTIDAD: cantidad, PRECIO: precio, TOTAL: total, CLIENTE_NOMBRE: clienteNombre, CLIENTE_CORREO: clienteCorreo, CLIENTE_ID: clienteId, CODIGO_SEGUIMIENTO: codigoSeguimiento, PEDIDO_ID: pedidoId, TIPO_COMPROBANTE: tipoComprobante, NRO_DOCUMENTO: nroDocumento, ESTADO: estado };
-      const response = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const payload = { 
+          id: originalVenta.id, PRODUCTO: producto, CANTIDAD: cantidad, PRECIO: precio, 
+          TOTAL: total, CLIENTE_NOMBRE: clienteNombre, CLIENTE_CORREO: clienteCorreo, 
+          CLIENTE_ID: clienteId, CODIGO_SEGUIMIENTO: codigoSeguimiento, PEDIDO_ID: pedidoId, 
+          TIPO_COMPROBANTE: tipoComprobante, NRO_DOCUMENTO: nroDocumento, ESTADO: estado 
+      };
+      const response = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(payload) 
+      });
       if (response.ok) {
-        Alert.alert('Éxito', 'El pedido ha sido actualizado correctamente. Refrescando datos...');
-        await fetchVentaById(ventaId);
+        Alert.alert('Éxito', 'El pedido ha sido actualizado. Recuerda refrescar la lista principal para ver los cambios.');
+        router.back(); // Go back after successful update
       } else {
         const responseData = await response.json();
         throw new Error(responseData.message || 'Error del servidor.');
@@ -125,7 +121,7 @@ export default function VentaModal() {
 
   const handleGenerateComprobante = async () => {
     if (!originalVenta) {
-        Alert.alert("Error", "Datos de la venta no disponibles. Por favor, recargue.");
+        Alert.alert("Error", "Datos de la venta no disponibles.");
         return;
     }
 
@@ -133,40 +129,22 @@ export default function VentaModal() {
     try {
         let sunatDocType;
         switch (originalVenta.TIPO_COMPROBANTE) {
-            case 'Factura':
-                sunatDocType = '6'; // RUC
-                break;
-            case 'Boleta':
-            case 'Boleta de Venta': // Handle both short and long names
-                sunatDocType = '1'; // DNI
-                break;
+            case 'Factura': sunatDocType = '6'; break;
+            case 'Boleta': case 'Boleta de Venta': sunatDocType = '1'; break;
             default:
-                Alert.alert("Error de Datos", `Tipo de comprobante no válido: '${originalVenta.TIPO_COMPROBANTE}'. Se esperaba 'Factura' o 'Boleta'.`);
+                Alert.alert("Error de Datos", `Tipo de comprobante no válido: '${originalVenta.TIPO_COMPROBANTE}'.`);
                 setIsGenerating(false);
                 return;
         }
 
         const payload = {
-            customer: {
-                name: originalVenta.CLIENTE_NOMBRE,
-                email: originalVenta.CLIENTE_CORREO,
-                doc_type: sunatDocType,
-                doc_number: originalVenta.NRO_DOCUMENTO,
-            },
-            items: [
-                {
-                    description: originalVenta.PRODUCTO,
-                    quantity: Number(originalVenta.CANTIDAD),
-                    price: Number(originalVenta.PRECIO),
-                },
-            ],
+            customer: { name: originalVenta.CLIENTE_NOMBRE, email: originalVenta.CLIENTE_CORREO, doc_type: sunatDocType, doc_number: originalVenta.NRO_DOCUMENTO },
+            items: [{ description: originalVenta.PRODUCTO, quantity: Number(originalVenta.CANTIDAD), price: Number(originalVenta.PRECIO) }],
             PEDIDO_ID: originalVenta.PEDIDO_ID,
         };
 
         const response = await fetch(process.env.EXPO_PUBLIC_CREAR_COMPROBANTE!, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
@@ -174,32 +152,19 @@ export default function VentaModal() {
             throw new Error(errorData.message || 'El servicio de facturación respondió con un error.');
         }
 
-        Alert.alert("Éxito", "El comprobante fue enviado para su procesamiento.");
-        
-        const updatePayload = { ...originalVenta, ESTADO: 'COMPROBANTE_GENERADO' };
-        const updateResponse = await fetch(process.env.EXPO_PUBLIC_ACTUALIZAR_VENTAS_WEBHOOK!, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatePayload),
-        });
-
-        if (!updateResponse.ok) {
-            Alert.alert("Aviso", "El comprobante se generó, pero el estado del pedido no pudo actualizarse. Por favor, actualice manualmente.");
-        }
-        
-        await fetchVentaById(originalVenta.id);
+        Alert.alert("Éxito", "El comprobante fue enviado. Refresca la lista principal para ver el estado actualizado.");
+        router.back(); // Go back instead of re-fetching
 
     } catch (error: any) {
         Alert.alert("Error al Generar", `No se pudo procesar el comprobante: ${error.message}`);
     } finally {
         setIsGenerating(false);
     }
-};
+  };
 
-
+  // --- UI LOGIC ---
   const isEditable = originalVenta?.ESTADO === 'PENDIENTE' || originalVenta?.ESTADO === 'PARA_SUNAT';
   
-  // Updated change detection to include email and phone (CLIENTE_ID)
   const hasChanges = originalVenta?.PRODUCTO !== producto || String(originalVenta?.CANTIDAD) !== cantidad || String(originalVenta?.PRECIO) !== precio || originalVenta?.CLIENTE_NOMBRE !== clienteNombre || originalVenta?.ESTADO !== estado || originalVenta?.CLIENTE_CORREO !== clienteCorreo || originalVenta?.CLIENTE_ID !== clienteId;
 
   let isUpdateDisabled = true;
@@ -210,7 +175,7 @@ export default function VentaModal() {
       isUpdateDisabled = false;
     }
   }
-
+  
   const styles = StyleSheet.create({
     container: { flex: 1 },
     scrollContent: { padding: 16, paddingBottom: 60 },
@@ -218,7 +183,6 @@ export default function VentaModal() {
     inputDisabled: { marginBottom: 12, backgroundColor: theme.colors.surfaceDisabled },
     button: { marginTop: 8, paddingVertical: 6 },
     title: { marginBottom: 16, paddingTop: 16, color: theme.colors.primary, textAlign: 'center' },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     estadoContainer: { marginBottom: 16, padding: 12, borderWidth: 1, borderColor: theme.colors.outline, borderRadius: 8 },
     estadoLabel: { fontSize: 16, marginBottom: 12, fontWeight: 'bold' },
     estadoButtons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
@@ -227,8 +191,12 @@ export default function VentaModal() {
     sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: theme.colors.onSurface, borderBottomWidth: 1, borderBottomColor: theme.colors.outline, paddingBottom: 6 }
   });
 
-  if (loading) {
-    return <View style={styles.loadingContainer}><ActivityIndicator animating={true} size="large" /></View>;
+  if (!originalVenta) {
+    return (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background}}>
+        <Paragraph>No se encontró información de la venta.</Paragraph>
+      </View>
+    );
   }
 
   return (
