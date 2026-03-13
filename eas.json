@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 18.3.0",
@@ -12,7 +13,10 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

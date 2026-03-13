@@ -8,7 +8,7 @@ import PdfViewerModal from '../../components/PdfViewerModal';
 // --- INTERFACES --- //
 interface Factura {
   id: string;
-  nombre: string;
+  nombre: string; // This will now hold the extracted filename, e.g., "20608097164-03-B001-00000052"
   tipo: string;
   estado: string;
   issueDate: string;
@@ -17,9 +17,10 @@ interface Factura {
   urlTicket: string;
 }
 
+// Updated interface to match the actual webhook response
 interface ApiFactura {
   id: string;
-  fileName: string;
+  // fileName is removed as it's not in the response
   type: string;
   status: string;
   issueTime: number;
@@ -30,6 +31,30 @@ interface ApiFactura {
 }
 
 const ITEMS_PER_PAGE = 12;
+
+// --- HELPER FUNCTION to extract filename from URL --- //
+const getFileNameFromUrl = (url: string): string => {
+    // Default fallback name if URL is invalid
+    const fallbackName = `comprobante-${Date.now()}`;
+    if (!url) return fallbackName;
+    
+    try {
+        // 1. Get the part before the query string '?'
+        const urlWithoutQuery = url.split('?')[0];
+        // 2. Split by slashes to get the segments
+        const segments = urlWithoutQuery.split('/');
+        // 3. Get the last segment which is the full filename like "206...52.pdf"
+        const fullFileName = segments[segments.length - 1];
+        // 4. Remove the .pdf extension to get the clean name
+        const cleanName = fullFileName.replace(/\.pdf$/i, '');
+        
+        return cleanName || fallbackName;
+    } catch {
+        // In case of any error during split/replace, return a unique name
+        return fallbackName;
+    }
+};
+
 
 // --- SCREEN COMPONENT --- //
 export default function FacturasScreen() {
@@ -72,10 +97,10 @@ export default function FacturasScreen() {
       const rawFacturas: ApiFactura[] = Array.isArray(apiResponse.data) ? apiResponse.data : [];
 
       const formattedFacturas = rawFacturas
-        .filter(item => item && item.id)
+        .filter(item => item && item.id && item.pdfA4) // Filter items that have an ID and a PDF url
         .map(item => ({
           id: item.id,
-          nombre: item.fileName,
+          nombre: getFileNameFromUrl(item.pdfA4), // Use the helper function to get the name
           tipo: item.type,
           estado: item.status || 'N/A',
           issueDate: item.issueDate || 'N/A',
@@ -120,6 +145,7 @@ export default function FacturasScreen() {
   const formatNombre = (fullName: string) => {
     const parts = fullName.split('-');
     if (parts.length >= 4) {
+      // Returns "B001-00000052"
       return `${parts[2]}-${parts[3]}`;
     }
     return fullName;
@@ -128,7 +154,8 @@ export default function FacturasScreen() {
   // --- DIALOG & MODAL HANDLERS --- //
   const showFormatDialog = (factura: Factura) => {
     setSelectedFactura(factura);
-    setPdfFileName(factura.nombre);
+    // Pass the extracted clean name to the PDF viewer
+    setPdfFileName(factura.nombre); 
     setFormatDialogVisible(true);
   };
 
