@@ -19,6 +19,7 @@ interface Venta {
   CODIGO_SEGUIMIENTO: string;
   ESTADO: string;
   PEDIDO_ID: string;
+  DATOS_COMPROBANTE: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -167,6 +168,7 @@ export default function TabVentasScreen() {
                     <Paragraph>Total: S/{ventaItem.TOTAL}</Paragraph>
                     <Paragraph>Estado: {ventaItem.ESTADO}</Paragraph>
                     <Paragraph>Fecha: {new Date(ventaItem.createdAt).toLocaleDateString()}</Paragraph>
+                    <Paragraph>N°Comprobante: {ventaItem.DATOS_COMPROBANTE}</Paragraph>
                     <Card.Actions style={{ paddingHorizontal: 0, paddingTop: 12 }}>
                         <Button onPress={() => handleViewDetails(ventaItem)}>Ver Detalle</Button>
                     </Card.Actions>
