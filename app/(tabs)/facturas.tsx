@@ -1,14 +1,15 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, RefreshControl, Text } from 'react-native';
 import { DataTable, Searchbar, useTheme, Title, Button, Portal, Dialog, Chip, IconButton, HelperText } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router'; // Import useRouter for navigation
 import PdfViewerModal from '../../components/PdfViewerModal';
 
 // --- INTERFACES --- //
 interface Factura {
   id: string;
-  nombre: string; // This will now hold the extracted filename, e.g., "20608097164-03-B001-00000052"
+  nombre: string; 
   tipo: string;
   estado: string;
   issueDate: string;
@@ -17,10 +18,8 @@ interface Factura {
   urlTicket: string;
 }
 
-// Updated interface to match the actual webhook response
 interface ApiFactura {
   id: string;
-  // fileName is removed as it's not in the response
   type: string;
   status: string;
   issueTime: number;
@@ -34,23 +33,16 @@ const ITEMS_PER_PAGE = 12;
 
 // --- HELPER FUNCTION to extract filename from URL --- //
 const getFileNameFromUrl = (url: string): string => {
-    // Default fallback name if URL is invalid
     const fallbackName = `comprobante-${Date.now()}`;
     if (!url) return fallbackName;
     
     try {
-        // 1. Get the part before the query string '?'
         const urlWithoutQuery = url.split('?')[0];
-        // 2. Split by slashes to get the segments
         const segments = urlWithoutQuery.split('/');
-        // 3. Get the last segment which is the full filename like "206...52.pdf"
         const fullFileName = segments[segments.length - 1];
-        // 4. Remove the .pdf extension to get the clean name
         const cleanName = fullFileName.replace(/\\.pdf$/i, '');
-        
         return cleanName || fallbackName;
     } catch {
-        // In case of any error during split/replace, return a unique name
         return fallbackName;
     }
 };
@@ -58,15 +50,16 @@ const getFileNameFromUrl = (url: string): string => {
 
 // --- SCREEN COMPONENT --- //
 export default function FacturasScreen() {
+  // --- HOOKS --- //
+  const theme = useTheme();
+  const router = useRouter(); // Initialize router
+
   // --- STATE MANAGEMENT --- //
   const [searchQuery, setSearchQuery] = useState('');
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [originalFacturas, setOriginalFacturas] = useState<Factura[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const theme = useTheme();
-
-  // Pagination state
   const [page, setPage] = useState(0);
 
   // Dialogs and Modals state
@@ -76,7 +69,7 @@ export default function FacturasScreen() {
   const [pdfUrlToView, setPdfUrlToView] = useState<string | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string | null>(null);
 
-  // --- DATA FETCHING & PROCESSING (MANUAL TRIGGER) --- //
+  // --- DATA FETCHING --- //
   const fetchFacturas = useCallback(async () => {
     setRefreshing(true);
     setError(null);
@@ -97,10 +90,10 @@ export default function FacturasScreen() {
       const rawFacturas: ApiFactura[] = Array.isArray(apiResponse.data) ? apiResponse.data : [];
 
       const formattedFacturas = rawFacturas
-        .filter(item => item && item.id && item.pdfA4) // Filter items that have an ID and a PDF url
+        .filter(item => item && item.id && item.pdfA4) 
         .map(item => ({
           id: item.id,
-          nombre: getFileNameFromUrl(item.pdfA4), // Use the helper function to get the name
+          nombre: getFileNameFromUrl(item.pdfA4),
           tipo: item.type,
           estado: item.status || 'N/A',
           issueDate: item.issueDate || 'N/A',
@@ -122,18 +115,17 @@ export default function FacturasScreen() {
     }
   }, []);
 
-  // This is the ONLY way data is fetched, triggered by user pull-to-refresh.
   const onRefresh = useCallback(() => {
     fetchFacturas();
   }, [fetchFacturas]);
 
-  // --- PAGINATION LOGIC --- //
+  // --- PAGINATION --- //
   const from = page * ITEMS_PER_PAGE;
   const to = from + ITEMS_PER_PAGE;
   const paginatedFacturas = facturas.slice(from, to);
   const totalPages = Math.ceil(facturas.length / ITEMS_PER_PAGE);
 
-  // --- HELPER FUNCTIONS --- //
+  // --- HELPERS --- //
   const getTipoDocumento = (tipo: string) => {
     switch (tipo) {
       case '01': return 'Factura';
@@ -145,16 +137,14 @@ export default function FacturasScreen() {
   const formatNombre = (fullName: string) => {
     const parts = fullName.split('-');
     if (parts.length >= 4) {
-      // Returns "B001-00000052"
       return `${parts[2]}-${parts[3]}`;
     }
     return fullName;
   };
 
-  // --- DIALOG & MODAL HANDLERS --- //
+  // --- HANDLERS --- //
   const showFormatDialog = (factura: Factura) => {
     setSelectedFactura(factura);
-    // Pass the extracted clean name to the PDF viewer
     setPdfFileName(factura.nombre); 
     setFormatDialogVisible(true);
   };
@@ -175,7 +165,14 @@ export default function FacturasScreen() {
     setPdfFileName(null);
   };
 
-  // --- SEARCH LOGIC --- //
+  const handleRenderPdf = (factura: Factura) => {
+    router.push({
+        pathname: '/pdf-viewer',
+        params: { pdfUrl: factura.urlA4, title: formatNombre(factura.nombre) }
+    });
+  }
+
+  // --- SEARCH --- //
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     setPage(0);
@@ -207,13 +204,14 @@ export default function FacturasScreen() {
     tableContainer: { flex: 1 },
     tableHeader: { backgroundColor: theme.colors.surface },
     dialogButton: { marginTop: 8 },
-    table: { minWidth: 950 },
+    table: { minWidth: 1080 }, 
     colNombre: { width: 180 },
     colTipo: { width: 80, justifyContent: 'center' },
     colEstado: { width: 130, justifyContent: 'center' },
     colFechaEmision: { width: 220, justifyContent: 'center' },
     colFechaRespuesta: { width: 220, justifyContent: 'center' },
     colAccion: { width: 110, justifyContent: 'center' },
+    colPdfRender: { width: 130, justifyContent: 'center' }, 
     centerMessageText: { textAlign: 'center', marginTop: 40, fontSize: 16, color: theme.colors.onSurfaceVariant },
     errorText: { margin: 16, textAlign: 'center' },
     emptyText: { textAlign: 'center', marginTop: 20, color: theme.colors.onSurfaceVariant }
@@ -276,9 +274,10 @@ export default function FacturasScreen() {
                       <DataTable.Title style={styles.colNombre}>Serie-Correlativo</DataTable.Title>
                       <DataTable.Title style={styles.colTipo}>Tipo</DataTable.Title>
                       <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
+                      <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
+                      <DataTable.Title style={styles.colPdfRender}>Render PDF</DataTable.Title>
                       <DataTable.Title style={styles.colFechaEmision}>Fecha Emisión</DataTable.Title>
                       <DataTable.Title style={styles.colFechaRespuesta}>Fecha Resp. SUNAT</DataTable.Title>
-                      <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
                   </DataTable.Header>
 
                   {paginatedFacturas.length > 0 ? (
@@ -287,9 +286,10 @@ export default function FacturasScreen() {
                             <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
                             <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
                             <DataTable.Cell style={styles.colAccion}><Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button></DataTable.Cell>
+                            <DataTable.Cell style={styles.colEstado}><StatusChip status={item.estado} /></DataTable.Cell>
+                            <DataTable.Cell style={styles.colPdfRender}><Button mode="outlined" icon="file-find" onPress={() => handleRenderPdf(item)}>Render</Button></DataTable.Cell>
                             <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
                             <DataTable.Cell style={styles.colFechaRespuesta}>{item.responseDate}</DataTable.Cell>
-                            <DataTable.Cell style={styles.colEstado}><StatusChip status={item.estado} /></DataTable.Cell>
                         </DataTable.Row>
                     ))
                   ) : (

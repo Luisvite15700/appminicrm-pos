@@ -35,7 +35,6 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
 
 
   useEffect(() => {
-    // This effect now only downloads the file for sharing, it doesn't trigger a view
     const prepareFileForSharing = async () => {
       if (!pdfUrl) return;
 
@@ -61,8 +60,6 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
 
       } catch (error) {
         console.error("Failed to prepare PDF for sharing:", error);
-        // We don't alert here because the main action (browser) can still work.
-        // We can show a specific alert if the user tries to share.
       } finally {
         setIsLoading(false);
       }
@@ -71,7 +68,6 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
     if (visible) {
       prepareFileForSharing();
     } else {
-      // Cleanup when modal is closed
       setIsLoading(false);
       setLocalFileUri(null);
     }
@@ -80,7 +76,6 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
   const handleShare = async () => {
     if (isSharing) return;
     
-    // If the file is still downloading or failed, localFileUri will be null
     if (!localFileUri) {
       Alert.alert(
         "Archivo no listo", 
@@ -115,12 +110,15 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
       Alert.alert("Error", "No hay una URL de PDF para abrir.");
       return;
     }
+    
+    const googleViewerUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(pdfUrl)}`;
+
     try {
-        const supported = await Linking.canOpenURL(pdfUrl);
+        const supported = await Linking.canOpenURL(googleViewerUrl);
         if (supported) {
-            await Linking.openURL(pdfUrl);
+            await Linking.openURL(googleViewerUrl);
         } else {
-            Alert.alert("Error", `No se puede abrir esta URL: ${pdfUrl}`);
+            Alert.alert("Error", `No se puede abrir esta URL en el navegador.`);
         }
     } catch (error) {
         console.error("Error opening URL in browser:", error);
@@ -167,7 +165,7 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
   };
 
   const styles = StyleSheet.create({
-    modal: { alignSelf: 'center', width: '90%', height: 'auto' }, // Auto height
+    modal: { alignSelf: 'center', width: '90%', height: 'auto' },
     card: { flexGrow: 1 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
     title: { flex: 1, marginRight: 12 },
@@ -176,7 +174,7 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
         padding: 16,
         justifyContent: 'center', 
         alignItems: 'center',
-        minHeight: 100, // Give it some space
+        minHeight: 100, 
     },
     actions: { 
         flexDirection: 'row', 
@@ -184,10 +182,10 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
         alignItems: 'center', 
         paddingHorizontal: 16, 
         paddingVertical: 8,
-        flexWrap: 'wrap', // Allow buttons to wrap on smaller screens
+        flexWrap: 'wrap',
     },
     leftActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-    rightActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingTop: 8 }, // Add padding top for wrapped state
+    rightActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingTop: 8 },
     loadingContainer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.8)' }
   });
 
