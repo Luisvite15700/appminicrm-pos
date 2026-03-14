@@ -191,9 +191,9 @@ export default function FacturasScreen() {
     table: { minWidth: 900 }, // Adjusted minWidth
     colNombre: { width: 180 },
     colTipo: { width: 80, justifyContent: 'center' },
-    colEstado: { width: 130, justifyContent: 'center' },
-    colFechaEmision: { width: 220, justifyContent: 'center' },
     colAccion: { width: 110, justifyContent: 'center' },
+    colFechaEmision: { width: 220, justifyContent: 'center' },
+    colEstado: { width: 130, justifyContent: 'center' },
     dialogTitleContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     dialogButton: { marginTop: 8 },
     centerMessageText: { textAlign: 'center', marginTop: 40, fontSize: 16, color: theme.colors.onSurfaceVariant },
@@ -272,18 +272,18 @@ export default function FacturasScreen() {
                   <DataTable.Header style={styles.tableHeader}>
                       <DataTable.Title style={styles.colNombre}>Serie-Correlativo</DataTable.Title>
                       <DataTable.Title style={styles.colTipo}>Tipo</DataTable.Title>
-                      <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
-                      <DataTable.Title style={styles.colFechaEmision}>Fecha Emisión</DataTable.Title>
                       <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
+                      <DataTable.Title style={styles.colFechaEmision}>Fecha Emisión</DataTable.Title>
+                      <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
                   </DataTable.Header>
                   {paginatedFacturas.length > 0 ? (
                     paginatedFacturas.map((item) => (
                         <DataTable.Row key={item.id}>
                             <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
                             <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
-                            <DataTable.Cell style={styles.colEstado}><StatusChip status={item.estado} /></DataTable.Cell>
-                            <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
                             <DataTable.Cell style={styles.colAccion}><Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button></DataTable.Cell>
+                            <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
+                            <DataTable.Cell style={styles.colEstado}><StatusChip status={item.estado} /></DataTable.Cell>
                         </DataTable.Row>
                     ))
                   ) : (
