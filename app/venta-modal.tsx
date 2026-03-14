@@ -144,7 +144,67 @@ export default function VentaModal() {
   };
 
   const handleGenerateComprobante = async () => {
-    // Implementation remains the same...
+    if (!pedidoId || !originalVenta) {
+      Alert.alert('Error', 'No hay datos del pedido para generar el comprobante.');
+      return;
+    }
+
+    const apiUrl = process.env.EXPO_PUBLIC_CREAR_COMPROBANTE;
+    if (!apiUrl) {
+      Alert.alert('Error de Configuración', 'La URL para generar comprobantes no está definida.');
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      const payload = {
+        customer: {
+          name: clienteNombre,
+          email: clienteCorreo || '',
+          doc_type: tipoComprobante === 'Factura Electrónica' ? '1' : '3',
+          doc_number: nroDocumento,
+        },
+        items: [
+          {
+            description: producto,
+            quantity: parseFloat(cantidad) || 0,
+            price: parseFloat(precio) || 0,
+          },
+        ],
+        PEDIDO_ID: pedidoId,
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        try {
+            const errorJson = JSON.parse(errorBody);
+            throw new Error(errorJson.message || `Error del Webhook: ${errorBody}`);
+        } catch (e) {
+            throw new Error(`Error del Webhook: ${errorBody}`);
+        }
+      }
+
+      await response.json();
+
+      Alert.alert('Éxito', 'La solicitud para generar el comprobante ha sido enviada.');
+      
+      // Automatically update status to prevent multiple submissions
+      if (estado !== 'COMPROBANTE_GENERADO') {
+        await handleStatusChange('COMPROBANTE_GENERADO');
+      }
+
+    } catch (error: any) {
+      Alert.alert('Error al Generar', error.message);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // --- UI LOGIC & STYLES --- //
@@ -165,9 +225,8 @@ export default function VentaModal() {
     estadoButton: { width: '48%', marginBottom: 8 },
     dateText: { fontSize: 12, color: theme.colors.onSurfaceVariant, textAlign: 'center', marginTop: 4 },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: theme.colors.onSurface, borderBottomWidth: 1, borderBottomColor: theme.colors.outline, paddingBottom: 6 },
-    // --- COLOR CHANGE --- //
-    snackbar: { backgroundColor: '#FFC107', bottom: 80 },
-    snackbarText: { color: '#000000' } // Black text for better contrast on gold
+    snackbar: { backgroundColor: '#FFC107' },
+    snackbarText: { color: '#000000' }
   });
 
   if (!originalVenta) { return null; }
@@ -231,7 +290,7 @@ export default function VentaModal() {
                 onPress={handleGenerateComprobante}
                 style={styles.button}
                 loading={isGenerating}
-                disabled={isUpdating || isGenerating || estado !== 'PARA_SUNAT' || !!statusUpdateLoading}
+                disabled={isUpdating || isGenerating || !(estado === 'PENDIENTE' || estado === 'PARA_SUNAT') || !!statusUpdateLoading}
                 icon="file-document-outline"
             >
               Generar Comprobante
