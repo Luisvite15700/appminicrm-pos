@@ -195,7 +195,6 @@ export default function VentaModal() {
 
       Alert.alert('Éxito', 'La solicitud para generar el comprobante ha sido enviada.');
       
-      // Automatically update status to prevent multiple submissions
       if (estado !== 'COMPROBANTE_GENERADO') {
         await handleStatusChange('COMPROBANTE_GENERADO');
       }
@@ -290,7 +289,7 @@ export default function VentaModal() {
                 onPress={handleGenerateComprobante}
                 style={styles.button}
                 loading={isGenerating}
-                disabled={isUpdating || isGenerating || !(estado === 'PENDIENTE' || estado === 'PARA_SUNAT') || !!statusUpdateLoading}
+                disabled={isUpdating || isGenerating || estado !== 'PARA_SUNAT' || !!statusUpdateLoading}
                 icon="file-document-outline"
             >
               Generar Comprobante
