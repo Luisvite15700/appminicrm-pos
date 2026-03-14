@@ -46,7 +46,7 @@ const getFileNameFromUrl = (url: string): string => {
         // 3. Get the last segment which is the full filename like "206...52.pdf"
         const fullFileName = segments[segments.length - 1];
         // 4. Remove the .pdf extension to get the clean name
-        const cleanName = fullFileName.replace(/\.pdf$/i, '');
+        const cleanName = fullFileName.replace(/\\.pdf$/i, '');
         
         return cleanName || fallbackName;
     } catch {

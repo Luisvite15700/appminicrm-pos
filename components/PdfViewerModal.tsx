@@ -1,11 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, View, ActivityIndicator, Alert, Platform, Dimensions } from 'react-native';
-import { Modal, Card, Title, Button, useTheme } from 'react-native-paper';
-import Pdf from 'react-native-pdf';
+import { StyleSheet, View, ActivityIndicator, Alert, Platform, Linking } from 'react-native';
+import { Modal, Card, Title, Button, useTheme, Text } from 'react-native-paper';
 import {
-  readAsStringAsync,
-  EncodingType,
   downloadAsync as legacyDownloadAsync,
   cacheDirectory as legacyCacheDirectory,
   deleteAsync,
@@ -18,7 +15,7 @@ interface Props {
   visible: boolean;
   onDismiss: () => void;
   pdfUrl: string | null;
-  fileName?: string; // This is the base name, e.g., "20608097164-03-B001-00000052"
+  fileName?: string; 
 }
 
 export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }: Props) {
@@ -27,12 +24,10 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
   const [isLoading, setIsLoading] = useState(false);
   const [localFileUri, setLocalFileUri] = useState<string | null>(null);
 
-  // This ensures the filename always ends with exactly one ".pdf"
   const finalFileName = useMemo(() => {
     if (!fileName) {
         return `vista-previa-${Date.now()}.pdf`;
     }
-    // If fileName already has .pdf, use it. Otherwise, add it.
     return fileName.toLowerCase().endsWith('.pdf') 
         ? fileName 
         : `${fileName}.pdf`;
@@ -40,7 +35,8 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
 
 
   useEffect(() => {
-    const loadPdfForViewing = async () => {
+    // This effect now only downloads the file for sharing, it doesn't trigger a view
+    const prepareFileForSharing = async () => {
       if (!pdfUrl) return;
 
       setIsLoading(true);
@@ -53,40 +49,29 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
         const localUri = (legacyCacheDirectory || '') + finalFileName;
 
         const fileInfo = await getInfoAsync(localUri);
-        let targetUri = '';
 
         if (fileInfo.exists) {
-          console.log(`File ${finalFileName} found in cache. Using local version.`);
-          targetUri = localUri;
+          console.log(`File ${finalFileName} found in cache. Using local version for sharing.`);
+          setLocalFileUri(localUri);
         } else {
-          console.log(`File ${finalFileName} not in cache. Downloading from ${pdfUrl}...`);
+          console.log(`File ${finalFileName} not in cache. Downloading for sharing...`);
           const { uri: downloadedUri } = await legacyDownloadAsync(pdfUrl, localUri);
-          targetUri = downloadedUri;
+          setLocalFileUri(downloadedUri);
         }
-
-        setLocalFileUri(targetUri);
 
       } catch (error) {
-        console.error("Failed to load PDF:", error);
-        Alert.alert("Error", "No se pudo cargar el documento.");
-        if (fileName) {
-            const localUri = (legacyCacheDirectory || '') + finalFileName;
-            try {
-                const fileInfo = await getInfoAsync(localUri);
-                if(fileInfo.exists) await deleteAsync(localUri, { idempotent: true });
-            } catch (cleanupError) {
-                console.error("Failed to cleanup broken file:", cleanupError);
-            }
-        }
-        onDismiss();
+        console.error("Failed to prepare PDF for sharing:", error);
+        // We don't alert here because the main action (browser) can still work.
+        // We can show a specific alert if the user tries to share.
       } finally {
         setIsLoading(false);
       }
     };
 
     if (visible) {
-      loadPdfForViewing();
+      prepareFileForSharing();
     } else {
+      // Cleanup when modal is closed
       setIsLoading(false);
       setLocalFileUri(null);
     }
@@ -94,8 +79,13 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
 
   const handleShare = async () => {
     if (isSharing) return;
+    
+    // If the file is still downloading or failed, localFileUri will be null
     if (!localFileUri) {
-      Alert.alert("Por favor, espere", "El documento aún no está listo para ser compartido.");
+      Alert.alert(
+        "Archivo no listo", 
+        "El documento no está listo para compartir. Por favor, espere a que termine la carga o revise su conexión."
+      );
       return;
     }
 
@@ -117,6 +107,24 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
       }
     } finally {
       setIsSharing(false);
+    }
+  };
+
+  const handleOpenInBrowser = async () => {
+    if (!pdfUrl) {
+      Alert.alert("Error", "No hay una URL de PDF para abrir.");
+      return;
+    }
+    try {
+        const supported = await Linking.canOpenURL(pdfUrl);
+        if (supported) {
+            await Linking.openURL(pdfUrl);
+        } else {
+            Alert.alert("Error", `No se puede abrir esta URL: ${pdfUrl}`);
+        }
+    } catch (error) {
+        console.error("Error opening URL in browser:", error);
+        Alert.alert("Error", "No se pudo abrir el enlace en el navegador.");
     }
   };
 
@@ -159,17 +167,27 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
   };
 
   const styles = StyleSheet.create({
-    modal: { alignSelf: 'center', width: '90%', height: '85%' },
-    card: { flex: 1 },
+    modal: { alignSelf: 'center', width: '90%', height: 'auto' }, // Auto height
+    card: { flexGrow: 1 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-    title: { flex: 1 },
-    content: { flex: 1, margin: 16, borderWidth: 1, borderColor: theme.colors.outline, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
-    pdf: {
-        flex: 1,
-        width: '100%',
-        height: '100%',
+    title: { flex: 1, marginRight: 12 },
+    content: { 
+        flexGrow: 1, 
+        padding: 16,
+        justifyContent: 'center', 
+        alignItems: 'center',
+        minHeight: 100, // Give it some space
     },
-    actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+    actions: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        paddingHorizontal: 16, 
+        paddingVertical: 8,
+        flexWrap: 'wrap', // Allow buttons to wrap on smaller screens
+    },
+    leftActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+    rightActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingTop: 8 }, // Add padding top for wrapped state
     loadingContainer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.8)' }
   });
 
@@ -177,49 +195,53 @@ export default function PdfViewerModal({ visible, onDismiss, pdfUrl, fileName }:
     <Modal visible={visible} onDismiss={onDismiss} contentContainerStyle={styles.modal}>
       <Card style={styles.card}>
         <View style={styles.header}>
-          <Title style={styles.title} numberOfLines={1}>Vista Previa</Title>
-          <Button icon="share-variant" onPress={handleShare} disabled={isSharing || isLoading}>
-            Compartir
-          </Button>
+          <Title style={styles.title} numberOfLines={2}>Acciones para el documento</Title>
         </View>
         
         <View style={styles.content}>
-          {localFileUri ? (
-            <Pdf
-                source={{ uri: localFileUri, cache: true }}
-                trustAllCerts={Platform.OS === 'android'} // Required for Android viewing local files
-                onLoadComplete={(numberOfPages, filePath) => {
-                    console.log(`Number of pages: ${numberOfPages}`);
-                }}
-                onError={(error) => {
-                    console.log(error);
-                    Alert.alert("Error", "No se pudo mostrar el PDF. El archivo podría estar dañado.");
-                }}
-                style={styles.pdf}
-            />
-          ) : !isLoading && (
-             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Title>Sin documento</Title></View>
-          )}
-
-          {isLoading && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
+          {isLoading ? (
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          ) : (
+            <Text variant="bodyMedium" style={{textAlign: 'center'}}>
+                La previsualización ya no está disponible. Utilice los botones para abrir, compartir o gestionar el documento.
+            </Text>
           )}
         </View>
 
         <Card.Actions style={styles.actions}>
-          <Button 
-            onPress={handleClearCache}
-            icon="delete-sweep-outline"
-            compact
-            mode="text"
-            labelStyle={{fontSize: 12}}
-            disabled={isLoading}
-          >
-            Limpiar
-          </Button>
-          <Button onPress={onDismiss} disabled={isLoading}>Cerrar</Button>
+            <View style={styles.leftActions}>
+                 <Button 
+                    onPress={handleClearCache}
+                    icon="delete-sweep-outline"
+                    compact
+                    mode="text"
+                    labelStyle={{fontSize: 12}}
+                    disabled={isLoading}
+                >
+                    Limpiar
+                </Button>
+            </View>
+            <View style={styles.rightActions}>
+                 <Button 
+                    icon="open-in-new" 
+                    onPress={handleOpenInBrowser} 
+                    disabled={!pdfUrl || isLoading}
+                    mode="outlined"
+                    style={{marginRight: 8}}
+                >
+                    Navegador
+                </Button>
+                 <Button 
+                    icon="share-variant" 
+                    onPress={handleShare} 
+                    disabled={isSharing || isLoading || !localFileUri}
+                    mode="contained"
+                    style={{marginRight: 8}}
+                >
+                    Compartir
+                </Button>
+                <Button onPress={onDismiss} disabled={isLoading}>Cerrar</Button>
+            </View>
         </Card.Actions>
       </Card>
     </Modal>
