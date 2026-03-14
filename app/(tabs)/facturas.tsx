@@ -1,15 +1,19 @@
 
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, RefreshControl, Text } from 'react-native';
+import { StyleSheet, View, ScrollView, RefreshControl, Text, Alert } from 'react-native';
 import { DataTable, Searchbar, useTheme, Title, Button, Portal, Dialog, Chip, IconButton, HelperText } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router'; // Import useRouter for navigation
-import PdfViewerModal from '../../components/PdfViewerModal';
+import { useRouter } from 'expo-router';
+import {
+  cacheDirectory as legacyCacheDirectory,
+  deleteAsync,
+  readDirectoryAsync,
+} from 'expo-file-system/legacy';
 
 // --- INTERFACES --- //
 interface Factura {
   id: string;
-  nombre: string; 
+  nombre: string;
   tipo: string;
   estado: string;
   issueDate: string;
@@ -31,66 +35,57 @@ interface ApiFactura {
 
 const ITEMS_PER_PAGE = 12;
 
-// --- HELPER FUNCTION to extract filename from URL --- //
+// --- HELPERS --- //
 const getFileNameFromUrl = (url: string): string => {
-    const fallbackName = `comprobante-${Date.now()}`;
-    if (!url) return fallbackName;
-    
-    try {
-        const urlWithoutQuery = url.split('?')[0];
-        const segments = urlWithoutQuery.split('/');
-        const fullFileName = segments[segments.length - 1];
-        const cleanName = fullFileName.replace(/\\.pdf$/i, '');
-        return cleanName || fallbackName;
-    } catch {
-        return fallbackName;
-    }
+  const fallbackName = `comprobante-${Date.now()}`;
+  if (!url) return fallbackName;
+  try {
+    const urlWithoutQuery = url.split('?')[0];
+    const segments = urlWithoutQuery.split('/');
+    return segments[segments.length - 1].replace(/\.pdf$/i, '') || fallbackName;
+  } catch {
+    return fallbackName;
+  }
 };
-
 
 // --- SCREEN COMPONENT --- //
 export default function FacturasScreen() {
   // --- HOOKS --- //
   const theme = useTheme();
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
 
-  // --- STATE MANAGEMENT --- //
+  // --- STATE --- //
   const [searchQuery, setSearchQuery] = useState('');
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [originalFacturas, setOriginalFacturas] = useState<Factura[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-
-  // Dialogs and Modals state
   const [formatDialogVisible, setFormatDialogVisible] = useState(false);
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
-  const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
-  const [pdfUrlToView, setPdfUrlToView] = useState<string | null>(null);
-  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [isClearingCache, setIsClearingCache] = useState(false);
 
   // --- DATA FETCHING --- //
   const fetchFacturas = useCallback(async () => {
     setRefreshing(true);
     setError(null);
-    const apiUrl = process.env.EXPO_PUBLIC_OBTENER_PDF;
+    const apiUrl = (process.env.EXPO_PUBLIC_OBTENER_PDF || '').replace('hhttps://', 'https://');
 
     if (!apiUrl) {
-        setError('La URL para cargar facturas no está configurada.');
-        setRefreshing(false);
-        return;
+      setError('La URL para cargar facturas no está configurada.');
+      setRefreshing(false);
+      return;
     }
 
     try {
       const response = await fetch(apiUrl);
-      if (!response.ok) {
-        throw new Error(`El servidor respondió con un error: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`El servidor respondió con un error: ${response.status}`);
+      
       const apiResponse = await response.json();
       const rawFacturas: ApiFactura[] = Array.isArray(apiResponse.data) ? apiResponse.data : [];
 
       const formattedFacturas = rawFacturas
-        .filter(item => item && item.id && item.pdfA4) 
+        .filter(item => item && item.id && item.pdfA4)
         .map(item => ({
           id: item.id,
           nombre: getFileNameFromUrl(item.pdfA4),
@@ -106,7 +101,6 @@ export default function FacturasScreen() {
       setFacturas(formattedFacturas);
       setSearchQuery('');
       setPage(0);
-
     } catch (e: any) {
       console.error("Error fetching facturas:", e);
       setError(`No se pudieron cargar las facturas: ${e.message}`);
@@ -115,80 +109,71 @@ export default function FacturasScreen() {
     }
   }, []);
 
-  const onRefresh = useCallback(() => {
-    fetchFacturas();
-  }, [fetchFacturas]);
+  const onRefresh = useCallback(() => { fetchFacturas(); }, [fetchFacturas]);
 
   // --- PAGINATION --- //
-  const from = page * ITEMS_PER_PAGE;
-  const to = from + ITEMS_PER_PAGE;
-  const paginatedFacturas = facturas.slice(from, to);
+  const paginatedFacturas = facturas.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
   const totalPages = Math.ceil(facturas.length / ITEMS_PER_PAGE);
 
   // --- HELPERS --- //
-  const getTipoDocumento = (tipo: string) => {
-    switch (tipo) {
-      case '01': return 'Factura';
-      case '03': return 'Boleta';
-      default: return tipo;
-    }
-  };
-
-  const formatNombre = (fullName: string) => {
-    const parts = fullName.split('-');
-    if (parts.length >= 4) {
-      return `${parts[2]}-${parts[3]}`;
-    }
-    return fullName;
-  };
+  const getTipoDocumento = (tipo: string) => tipo === '01' ? 'Factura' : tipo === '03' ? 'Boleta' : tipo;
+  const formatNombre = (name: string) => name.split('-').slice(2).join('-') || name;
 
   // --- HANDLERS --- //
   const showFormatDialog = (factura: Factura) => {
     setSelectedFactura(factura);
-    setPdfFileName(factura.nombre); 
     setFormatDialogVisible(true);
   };
 
   const hideFormatDialog = () => setFormatDialogVisible(false);
 
-  const handleFormatSelect = (url: string | undefined) => {
+  const handleFormatSelect = (url: string, title: string) => {
     hideFormatDialog();
-    if (url) {
-      setPdfUrlToView(url);
-      setPdfViewerVisible(true);
-    }
+    router.push({ pathname: '/pdf-viewer', params: { pdfUrl: url, title } });
   };
 
-  const hidePdfViewer = () => {
-    setPdfViewerVisible(false);
-    setPdfUrlToView(null);
-    setPdfFileName(null);
-  };
-
-  const handleRenderPdf = (factura: Factura) => {
-    router.push({
-        pathname: '/pdf-viewer',
-        params: { pdfUrl: factura.urlA4, title: formatNombre(factura.nombre) }
-    });
-  }
-
-  // --- SEARCH --- //
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     setPage(0);
-    if (query === '') {
-      setFacturas(originalFacturas);
-    } else {
-      const lowerCaseQuery = query.toLowerCase();
-      const filtered = originalFacturas.filter(item =>
-        (formatNombre(item.nombre).toLowerCase().includes(lowerCaseQuery)) ||
-        (getTipoDocumento(item.tipo).toLowerCase().includes(lowerCaseQuery)) ||
-        (item.estado && item.estado.toLowerCase().includes(lowerCaseQuery)) ||
-        (item.issueDate && item.issueDate.toLowerCase().includes(lowerCaseQuery)) ||
-        (item.responseDate && item.responseDate.toLowerCase().includes(lowerCaseQuery))
-      );
-      setFacturas(filtered);
-    }
+    const lowerCaseQuery = query.toLowerCase();
+    const filtered = lowerCaseQuery === '' ? originalFacturas : originalFacturas.filter(item => 
+        Object.values(item).some(value => String(value).toLowerCase().includes(lowerCaseQuery)) ||
+        formatNombre(item.nombre).toLowerCase().includes(lowerCaseQuery)
+    );
+    setFacturas(filtered);
+  };
+
+  const handleClearCache = async () => {
+    Alert.alert(
+      "Limpiar Caché",
+      "¿Borrar todos los comprobantes guardados? Esto liberará espacio y se volverán a descargar la próxima vez.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Borrar Todo",
+          style: "destructive",
+          onPress: async () => {
+            setIsClearingCache(true);
+            try {
+              const cacheDir = legacyCacheDirectory || '';
+              const files = await readDirectoryAsync(cacheDir);
+              const pdfFiles = files.filter(f => f.toLowerCase().endsWith('.pdf'));
+              let deletedCount = 0;
+              for (const file of pdfFiles) {
+                await deleteAsync(cacheDir + file, { idempotent: true });
+                deletedCount++;
+              }
+              Alert.alert("Éxito", `Se eliminaron ${deletedCount} comprobantes guardados.`);
+            } catch (error) {
+              Alert.alert("Error", "No se pudo limpiar el caché de documentos.");
+            } finally {
+              setIsClearingCache(false);
+              hideFormatDialog();
+            }
+          }
+        }
+      ]
+    );
   };
 
   // --- STYLES --- //
@@ -203,15 +188,14 @@ export default function FacturasScreen() {
     pageNumber: { marginHorizontal: 8, fontSize: 16, color: theme.colors.onSurface },
     tableContainer: { flex: 1 },
     tableHeader: { backgroundColor: theme.colors.surface },
-    dialogButton: { marginTop: 8 },
-    table: { minWidth: 1080 }, 
+    table: { minWidth: 900 }, // Adjusted minWidth
     colNombre: { width: 180 },
     colTipo: { width: 80, justifyContent: 'center' },
     colEstado: { width: 130, justifyContent: 'center' },
     colFechaEmision: { width: 220, justifyContent: 'center' },
-    colFechaRespuesta: { width: 220, justifyContent: 'center' },
     colAccion: { width: 110, justifyContent: 'center' },
-    colPdfRender: { width: 130, justifyContent: 'center' }, 
+    dialogTitleContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    dialogButton: { marginTop: 8 },
     centerMessageText: { textAlign: 'center', marginTop: 40, fontSize: 16, color: theme.colors.onSurfaceVariant },
     errorText: { margin: 16, textAlign: 'center' },
     emptyText: { textAlign: 'center', marginTop: 20, color: theme.colors.onSurfaceVariant }
@@ -219,30 +203,49 @@ export default function FacturasScreen() {
 
   // --- CHILD COMPONENTS --- //
   const StatusChip = ({ status }: { status: string }) => {
-     switch (status) {
-      case 'ACEPTADO': return <Chip icon="check-circle" selectedColor="#0B6A38" style={{ backgroundColor: '#D1F4E1' }}>Aceptado</Chip>;
-      case 'RECHAZADO': return <Chip icon="alert-circle" selectedColor={theme.colors.onErrorContainer} style={{ backgroundColor: theme.colors.errorContainer }}>Rechazado</Chip>;
-      case 'EXCEPCION': return <Chip icon="sync-alert" selectedColor="#7F5F01" style={{ backgroundColor: '#FFECB3' }}>Reintentar</Chip>;
-      case 'VALIDANDO': return <Chip icon="timer-sand" selectedColor={theme.colors.onSurfaceVariant} style={{ backgroundColor: theme.colors.surfaceVariant }}>Validando</Chip>;
-      default: return <Chip>{status}</Chip>;
-    }
+    const config = {
+      ACEPTADO: { icon: "check-circle", color: "#0B6A38", bg: '#D1F4E1', label: "Aceptado" },
+      RECHAZADO: { icon: "alert-circle", color: theme.colors.onErrorContainer, bg: theme.colors.errorContainer, label: "Rechazado" },
+      EXCEPCION: { icon: "sync-alert", color: "#7F5F01", bg: '#FFECB3', label: "Reintentar" },
+      VALIDANDO: { icon: "timer-sand", color: theme.colors.onSurfaceVariant, bg: theme.colors.surfaceVariant, label: "Validando" },
+    }[status] || { icon: "help-circle", label: status };
+    return <Chip icon={config.icon} selectedColor={config.color} style={{ backgroundColor: config.bg }}>{config.label}</Chip>;
   };
-  
+
   // --- MAIN RENDER --- //
   return (
     <SafeAreaView style={styles.safeArea}>
       <Portal>
-        <PdfViewerModal visible={pdfViewerVisible} onDismiss={hidePdfViewer} pdfUrl={pdfUrlToView} fileName={pdfFileName || undefined} />
         <Dialog visible={formatDialogVisible} onDismiss={hideFormatDialog}>
-          <Dialog.Title>Elegir Formato de PDF</Dialog.Title>
+          <View style={styles.dialogTitleContainer}>
+            <Dialog.Title>Elegir Formato</Dialog.Title>
+            <IconButton 
+              icon="delete-sweep-outline" 
+              size={20} 
+              onPress={handleClearCache}
+              disabled={isClearingCache}
+            />
+          </View>
           <Dialog.Content>
-            <Button icon="file-pdf-box" mode="contained" onPress={() => handleFormatSelect(selectedFactura?.urlA4)} style={styles.dialogButton}>Ver Formato A4</Button>
-            <Button icon="ticket-confirmation" mode="contained" onPress={() => handleFormatSelect(selectedFactura?.urlTicket)} style={styles.dialogButton}>Ver Ticket 80mm</Button>
+            <Button 
+              icon="file-pdf-box" 
+              mode="contained" 
+              onPress={() => handleFormatSelect(selectedFactura!.urlA4, formatNombre(selectedFactura!.nombre))}
+              disabled={!selectedFactura?.urlA4}
+              style={styles.dialogButton}>Ver Formato A4</Button>
+            <Button 
+              icon="ticket-confirmation" 
+              mode="contained" 
+              onPress={() => handleFormatSelect(selectedFactura!.urlTicket, formatNombre(selectedFactura!.nombre))}
+              disabled={!selectedFactura?.urlTicket}
+              style={styles.dialogButton}>Ver Ticket 80mm</Button>
           </Dialog.Content>
-          <Dialog.Actions><Button onPress={hideFormatDialog}>Cancelar</Button></Dialog.Actions>
+          <Dialog.Actions>
+            <Button onPress={hideFormatDialog}>Cancelar</Button>
+          </Dialog.Actions>
         </Dialog>
       </Portal>
-      
+
       <View style={styles.container}>
         <View style={styles.headerContainer}>
             <Title style={styles.title}>Facturas y Documentos</Title>
@@ -259,11 +262,7 @@ export default function FacturasScreen() {
         {error && <HelperText type="error" visible={true} style={styles.errorText}>{error}</HelperText>}
 
         <View style={styles.tableContainer}>
-          <ScrollView
-            horizontal
-            contentContainerStyle={{ flexGrow: 1 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          >
+          <ScrollView horizontal contentContainerStyle={{ flexGrow: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
             {facturas.length === 0 && !refreshing && !error ? (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
                 <Text style={styles.centerMessageText}>Desliza hacia abajo para cargar las facturas</Text>
@@ -273,27 +272,22 @@ export default function FacturasScreen() {
                   <DataTable.Header style={styles.tableHeader}>
                       <DataTable.Title style={styles.colNombre}>Serie-Correlativo</DataTable.Title>
                       <DataTable.Title style={styles.colTipo}>Tipo</DataTable.Title>
-                      <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
                       <DataTable.Title style={styles.colEstado}>Estado</DataTable.Title>
-                      <DataTable.Title style={styles.colPdfRender}>Render PDF</DataTable.Title>
                       <DataTable.Title style={styles.colFechaEmision}>Fecha Emisión</DataTable.Title>
-                      <DataTable.Title style={styles.colFechaRespuesta}>Fecha Resp. SUNAT</DataTable.Title>
+                      <DataTable.Title style={styles.colAccion}>Acción</DataTable.Title>
                   </DataTable.Header>
-
                   {paginatedFacturas.length > 0 ? (
                     paginatedFacturas.map((item) => (
                         <DataTable.Row key={item.id}>
                             <DataTable.Cell style={styles.colNombre}>{formatNombre(item.nombre)}</DataTable.Cell>
                             <DataTable.Cell style={styles.colTipo}>{getTipoDocumento(item.tipo)}</DataTable.Cell>
-                            <DataTable.Cell style={styles.colAccion}><Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button></DataTable.Cell>
                             <DataTable.Cell style={styles.colEstado}><StatusChip status={item.estado} /></DataTable.Cell>
-                            <DataTable.Cell style={styles.colPdfRender}><Button mode="outlined" icon="file-find" onPress={() => handleRenderPdf(item)}>Render</Button></DataTable.Cell>
                             <DataTable.Cell style={styles.colFechaEmision}>{item.issueDate}</DataTable.Cell>
-                            <DataTable.Cell style={styles.colFechaRespuesta}>{item.responseDate}</DataTable.Cell>
+                            <DataTable.Cell style={styles.colAccion}><Button mode="contained" onPress={() => showFormatDialog(item)}>Ver</Button></DataTable.Cell>
                         </DataTable.Row>
                     ))
                   ) : (
-                    !refreshing && <DataTable.Row><DataTable.Cell><Text style={styles.emptyText}>No se encontraron facturas para tu búsqueda.</Text></DataTable.Cell></DataTable.Row>
+                    !refreshing && <DataTable.Row><DataTable.Cell><Text style={styles.emptyText}>No se encontraron facturas.</Text></DataTable.Cell></DataTable.Row>
                   )}
               </DataTable>
             )}
