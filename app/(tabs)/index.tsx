@@ -41,9 +41,11 @@ export default function TabVentasScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [pedidos, setPedidos] = useState<PedidoAgrupado[]>([]);
   const [originalPedidos, setOriginalPedidos] = useState<PedidoAgrupado[]>([]);
+  const [searchText, setSearchText] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const theme = useTheme();
   const router = useRouter();
+  
 
   const groupSalesByPedidoId = (sales: Venta[]): PedidoAgrupado[] => {
     if (!sales || sales.length === 0) return [];
@@ -233,11 +235,17 @@ export default function TabVentasScreen() {
             <View>
               <ThemedText type="title" style={styles.title}>Ventas</ThemedText>
               <Searchbar
-                placeholder="Buscar por Pedido, Producto o Cliente"
-                onChangeText={handleSearch}
-                value={searchQuery}
-                style={styles.searchbar}
-              />
+  placeholder="Buscar por ID, producto o cliente..."
+  // 1. Ahora solo actualiza el texto mientras escribes.
+  onChangeText={setSearchText} 
+  
+  // 2. El valor que se muestra en la barra es el nuevo estado.
+  value={searchText}
+
+  // 3. ¡La clave! Esto ejecuta la búsqueda al presionar "buscar".
+  onSubmitEditing={() => handleSearch(searchText)} 
+/>
+
               <View style={styles.priceFilterContainer}>
                 <Button mode="contained" onPress={() => handleSort('desc')} style={styles.filterButton}>Más Recientes</Button>
                 <Button mode="contained" onPress={() => handleSort('asc')} style={styles.filterButton}>Más Antiguos</Button>

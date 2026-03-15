@@ -136,13 +136,54 @@ export default function FacturasScreen() {
     setSearchQuery(query);
     setPage(0);
     const lowerCaseQuery = query.toLowerCase();
-    const filtered = lowerCaseQuery === '' ? originalFacturas : originalFacturas.filter(item => 
-        Object.values(item).some(value => String(value).toLowerCase().includes(lowerCaseQuery)) ||
-        formatNombre(item.nombre).toLowerCase().includes(lowerCaseQuery)
-    );
+  
+    // --- PASO 1: Crea la función que "normaliza" la serie ---
+    // 'B001-00058' se convertirá en 'b001-58'
+    const normalizeSerie = (text: string) => {
+      const parts = text.split('-');
+      // Solo aplica la lógica si el texto tiene un guion (ej. 'F001-123')
+      if (parts.length === 2) {
+        const serie = parts[0].toLowerCase();
+        // parseInt() es la clave: convierte '00058' en el número 58
+        const number = parseInt(parts[1], 10);
+        
+        if (!isNaN(number)) {
+          // Reconstruimos la cadena limpia: 'b001' + '-' + 58 => 'b001-58'
+          return `${serie}-${number}`;
+        }
+      }
+      // Si no tiene guion, solo lo devuelve en minúsculas.
+      return text.toLowerCase();
+    };
+  
+    // --- PASO 2: Normaliza lo que el usuario está buscando ---
+    const normalizedQuery = normalizeSerie(lowerCaseQuery);
+  
+    const filtered = lowerCaseQuery === '' 
+      ? originalFacturas 
+      : originalFacturas.filter(item => {
+  
+        // --- Mantenemos la búsqueda general que ya tenías ---
+        // Esto permite seguir buscando por fecha, estado, etc.
+        const genericMatch = Object.values(item).some(value => 
+          String(value).toLowerCase().includes(lowerCaseQuery)
+        );
+  
+        // --- PASO 3: Normaliza la Serie-Correlativo del item actual ---
+        const itemSerie = formatNombre(item.nombre); // ej: 'B001-00000058'
+        const normalizedItemSerie = normalizeSerie(itemSerie); // ej: 'b001-58'
+  
+        // --- PASO 4: Compara las versiones normalizadas ---
+        // Comprueba si 'b001-58' incluye lo que buscaste, ej: 'b001-58'
+        const serieMatch = normalizedItemSerie.includes(normalizedQuery);
+  
+        // Un item se muestra si la búsqueda general O la búsqueda por serie coinciden
+        return genericMatch || serieMatch;
+      });
+  
     setFacturas(filtered);
   };
-
+  
   const handleClearCache = async () => {
     Alert.alert(
       "Limpiar Caché",
