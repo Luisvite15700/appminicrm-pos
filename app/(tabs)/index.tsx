@@ -89,17 +89,59 @@ export default function TabVentasScreen() {
     fetchSalesAndGroup();
   }, [fetchSalesAndGroup]);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    const filtered = originalPedidos.filter(pedido =>
-      pedido.PEDIDO_ID.toLowerCase().includes(query.toLowerCase()) ||
-      pedido.items.some(item => 
-        item.PRODUCTO.toLowerCase().includes(query.toLowerCase()) ||
-        item.CLIENTE_NOMBRE.toLowerCase().includes(query.toLowerCase())
-      )
-    );
-    setPedidos(filtered);
-  };
+      const handleSearch = (query: string) => {
+        setSearchQuery(query);
+        const lowerCaseQuery = query.toLowerCase();
+      
+        const filtered = originalPedidos.filter(pedido => {
+          // 1. Búsqueda por texto (como ya la tenías)
+          const textMatch = (
+            pedido.PEDIDO_ID.toLowerCase().includes(lowerCaseQuery) ||
+            pedido.items.some(item => 
+              item.PRODUCTO.toLowerCase().includes(lowerCaseQuery) ||
+              item.CLIENTE_NOMBRE.toLowerCase().includes(lowerCaseQuery)
+            )
+          );
+      
+          // 2. Búsqueda por fecha (mejorada)
+          let dateMatch = false;
+          const dateParts = query.split('/');
+          const itemDate = new Date(pedido.items[0].createdAt);
+      
+          // Caso A: El usuario escribe "dd/mm/yyyy"
+          if (dateParts.length === 3) {
+            const searchMonth = parseInt(dateParts[1], 10);
+            const searchYear = parseInt(dateParts[2], 10);
+      
+            if (!isNaN(searchMonth) && !isNaN(searchYear)) {
+              // Comparamos mes y año. OJO: getMonth() es base 0 (0-11)
+              if (itemDate.getMonth() + 1 === searchMonth && itemDate.getFullYear() === searchYear) {
+                dateMatch = true;
+              }
+            }
+          } 
+          // Caso B: El usuario escribe "dd/mm"
+          else if (dateParts.length === 2) {
+            const searchDay = parseInt(dateParts[0], 10);
+            const searchMonth = parseInt(dateParts[1], 10);
+            const currentYear = new Date().getFullYear(); // Obtenemos el año actual
+      
+            if (!isNaN(searchDay) && !isNaN(searchMonth)) {
+              // Comparamos día, mes Y que el año sea el actual
+              if (
+                itemDate.getDate() === searchDay && 
+                itemDate.getMonth() + 1 === searchMonth &&
+                itemDate.getFullYear() === currentYear // <-- ¡Esta es la nueva condición!
+              ) {
+                dateMatch = true;
+              }
+            }
+          }
+              // Un pedido se muestra si coincide con el texto O con la fecha
+          return textMatch || dateMatch;
+        });      
+        setPedidos(filtered);
+      };
 
   const handleSort = (order: 'asc' | 'desc') => {
     const sorted = [...pedidos].sort((a, b) => {
