@@ -190,16 +190,9 @@ Las contribuciones son bienvenidas. Por favor:
 4. Abrir un Pull Request
 
 ---
-
-## 📄 Licencia
-
-Este proyecto es privado. Todos los derechos reservados.
-
 ---
 
 ## 📞 Contacto
-
-Para preguntas o sugerencias sobre el proyecto, contacta al equipo de desarrollo.
 
 ---
 
