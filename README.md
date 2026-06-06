@@ -1,53 +1,53 @@
-> Edited for use in IDX on 07/09/12
+> Editado para usar en IDX el 07/09/12
 
-# Welcome to your Expo app 👋
+# Bienvenido a tu app Expo 👋
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Este es un proyecto [Expo](https://expo.dev) creado con [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
-## Get started
+## Comenzar
 
 #### Android
 
-Android previews are defined as a `workspace.onStart` hook and started as a vscode task when the workspace is opened/started.
+Las vistas previas de Android se definen como un gancho `workspace.onStart` e se inician como una tarea de vscode cuando el espacio de trabajo se abre/inicia.
 
-Note, if you can't find the task, either:
-- Rebuild the environment (using command palette: `IDX: Rebuild Environment`), or
-- Run `npm run android -- --tunnel` command manually run android and see the output in your terminal. The device should pick up this new command and switch to start displaying the output from it.
+Nota: si no puedes encontrar la tarea, entonces:
+- Reconstruir el entorno (usando la paleta de comandos: `IDX: Rebuild Environment`), o
+- Ejecutar `npm run android -- --tunnel` para ejecutar android manualmente y ver el resultado en tu terminal. El dispositivo debería detectar este nuevo comando y cambiar para comenzar a mostrar el resultado.
 
-In the output of this command/task, you'll find options to open the app in a
+En el resultado de este comando/tarea, encontrarás opciones para abrir la app en:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- [compilación de desarrollo](https://docs.expo.dev/develop/development-builds/introduction/)
+- [emulador de Android](https://docs.expo.dev/workflow/android-studio-emulator/)
+- [Expo Go](https://expo.dev/go), un sandbox limitado para probar el desarrollo de apps con Expo
 
-You'll also find options to open the app's developer menu, reload the app, and more.
+También encontrarás opciones para abrir el menú de desarrollador de la app, recargar la app, y más.
 
 #### Web
 
-Web previews will be started and managred automatically. Use the toolbar to manually refresh.
+Las vistas previas web se iniciarán y administrarán automáticamente. Usa la barra de herramientas para actualizar manualmente.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Puedes comenzar a desarrollar editando los archivos dentro del directorio **app**. Este proyecto usa [enrutamiento basado en archivos](https://docs.expo.dev/router/introduction).
 
-## Get a fresh project
+## Obtener un proyecto nuevo
 
-When you're ready, run:
+Cuando estés listo, ejecuta:
 
 ```bash
 npm run reset-project
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Este comando moverá el código de inicio al directorio **app-example** y creará un directorio **app** en blanco donde puedes comenzar a desarrollar.
 
-## Learn more
+## Aprender más
 
-To learn more about developing your project with Expo, look at the following resources:
+Para aprender más sobre el desarrollo de tu proyecto con Expo, consulta los siguientes recursos:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- [Documentación de Expo](https://docs.expo.dev/): Aprende los fundamentos o profundiza en temas avanzados con nuestras [guías](https://docs.expo.dev/guides).
+- [Tutorial de Expo](https://docs.expo.dev/tutorial/introduction/): Sigue un tutorial paso a paso donde crearás un proyecto que se ejecuta en Android, iOS y web.
 
-## Join the community
+## Únete a la comunidad
 
-Join our community of developers creating universal apps.
+Únete a nuestra comunidad de desarrolladores que crean apps universales.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- [Expo en GitHub](https://github.com/expo/expo): Ver nuestra plataforma de código abierto y contribuir.
+- [Comunidad de Discord](https://chat.expo.dev): Chatea con usuarios de Expo y haz preguntas.
