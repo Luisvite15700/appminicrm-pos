@@ -1,6 +1,6 @@
-# 🧾 Freshadas MiniApp - Sistema POS de Facturación Electrónica Perú
+# 🧾 MiniApp - Sistema POS de Facturación Electrónica Perú
 
-Aplicativo mobile nativo para Android desarrollado con **Expo** y **React Native**. Es un sistema POS (Point of Sale) especializado en facturación electrónica peruana con múltiples secciones para gestionar ventas, clientes, inventario y reportes.
+Aplicativo mobile nativo para Android desarrollado con **Expo** y **React Native**. Es un sistema POS (Point of Sale) especializado en facturación electrónica Perú con múltiples secciones para gestionar ventas, clientes, inventario y reportes.
 
 ---
 
