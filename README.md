@@ -36,14 +36,6 @@ La aplicación está dividida en **5 secciones principales** accesibles desde la
 - Android Studio (para emulador) o dispositivo Android
 - Expo CLI: `npm install -g expo-cli`
 
-### Instalación
-
-1. **Clonar el repositorio:**
-   ```bash
-   git clone https://github.com/Luisvite15700/appminicrm-main.git
-   cd appminicrm-main
-   ```
-
 2. **Instalar dependencias:**
    ```bash
    npm install
@@ -178,22 +170,5 @@ La aplicación está optimizada para Android con:
 
 La aplicación está completamente en **español**, optimizada para el mercado peruano con soporte para facturación electrónica local.
 
----
-
-## 🤝 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-2. Hacer commit de los cambios (`git commit -m 'Add some AmazingFeature'`)
-3. Push a la rama (`git push origin feature/AmazingFeature`)
-4. Abrir un Pull Request
-
----
----
-
-## 📞 Contacto
-
----
 
 **Última actualización:** Junio 2026
